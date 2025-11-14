@@ -6,6 +6,7 @@ Cargo.lock
 # WASM
 boid-wasm/www/pkg
 *.wasm
+node_modules/
 
 # IDE
 .idea

@@ -169,6 +169,27 @@ impl Boid {
             self.position.y = 0.0;
         }
     }
+
+    pub fn contain_within_bounds(&mut self, width: f32, height: f32) {
+        let margin = 10.0;
+
+        // Bounce off edges by reversing velocity component
+        if self.position.x < margin {
+            self.position.x = margin;
+            self.velocity.x = self.velocity.x.abs();
+        } else if self.position.x > width - margin {
+            self.position.x = width - margin;
+            self.velocity.x = -self.velocity.x.abs();
+        }
+
+        if self.position.y < margin {
+            self.position.y = margin;
+            self.velocity.y = self.velocity.y.abs();
+        } else if self.position.y > height - margin {
+            self.position.y = height - margin;
+            self.velocity.y = -self.velocity.y.abs();
+        }
+    }
 }
 
 /// Configuration for the boid simulation
@@ -385,6 +406,10 @@ impl FlockStd {
     }
 
     pub fn update(&mut self) {
+        self.update_with_target(None);
+    }
+
+    pub fn update_with_target(&mut self, target: Option<Vector2D>) {
         // Calculate forces for all boids
         let forces: Vec<Vector2D> = self
             .boids
@@ -396,7 +421,15 @@ impl FlockStd {
                     * self.config.alignment_weight;
                 let coh = behavior::cohesion(boid, self.boids.iter(), &self.config)
                     * self.config.cohesion_weight;
-                sep + ali + coh
+
+                // Add seek behavior if target is present
+                let seek_force = if let Some(target_pos) = target {
+                    behavior::seek(boid, target_pos, &self.config) * 2.0
+                } else {
+                    Vector2D::zero()
+                };
+
+                sep + ali + coh + seek_force
             })
             .collect();
 
@@ -404,7 +437,9 @@ impl FlockStd {
         for (boid, force) in self.boids.iter_mut().zip(forces.iter()) {
             boid.apply_force(*force);
             boid.update(self.config.max_speed, self.config.max_force);
-            boid.wrap_edges(self.width, self.height);
+
+            // Keep boids within canvas bounds
+            boid.contain_within_bounds(self.width, self.height);
         }
     }
 

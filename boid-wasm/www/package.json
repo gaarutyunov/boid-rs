@@ -4,7 +4,9 @@
   "description": "WebAssembly frontend for boid simulation",
   "scripts": {
     "build": "wasm-pack build --target web --out-dir www/pkg ..",
-    "serve": "python3 -m http.server 8080"
+    "serve": "python3 -m http.server 8080",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "keywords": [
     "wasm",
@@ -13,5 +15,8 @@
     "simulation"
   ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.48.0"
+  }
 }

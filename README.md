@@ -81,6 +81,39 @@ cargo test -p boid-core
 cargo test -- --nocapture
 ```
 
+### Running E2E Tests
+
+The project includes Playwright end-to-end tests for the web interface:
+
+```bash
+# Navigate to the web frontend
+cd boid-wasm/www
+
+# Install dependencies (first time only)
+npm install
+
+# Install Playwright browsers (first time only)
+npx playwright install --with-deps chromium
+
+# Build WASM first
+cd ..
+wasm-pack build --target web
+cd www
+
+# Run e2e tests
+npm run test:e2e
+
+# Run e2e tests in UI mode (interactive)
+npm run test:e2e:ui
+```
+
+The e2e tests verify:
+- Canvas initialization and boid rendering
+- Pointer tracking (mouse and touch events)
+- Seek behavior when pointer is pressed
+- Boundary containment
+- Mouse leave handling
+
 ### Building the WASM Application
 
 ```bash
