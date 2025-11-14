@@ -1,11 +1,16 @@
-# Boid Simulation - Rust + WebAssembly
+# Boid Simulation - Rust + WebAssembly + Embedded
 
-A flocking behavior simulation implementing Craig Reynolds' Boid algorithm, built with Rust and compiled to WebAssembly for web deployment.
+A flocking behavior simulation implementing Craig Reynolds' Boid algorithm, built with Rust for multiple platforms:
+- WebAssembly for web browsers
+- Embedded systems (ESP32-S3 Sense, C3, C6) with Embassy framework
 
 ## Features
 
 - **Pure Rust Implementation**: Core boid algorithm written in Rust with comprehensive tests
+- **no_std Support**: Core algorithm works on embedded systems without standard library
 - **WebAssembly Frontend**: Interactive canvas-based visualization running in the browser
+- **Embedded Support**: Runs on ESP32-S3 Sense, C3, and C6 microcontrollers with LED displays
+- **Embassy Framework**: Async runtime for efficient embedded execution
 - **Touch Support**: Works on both desktop (mouse) and mobile (touch) devices
 - **Real-time Controls**: Adjust simulation parameters on the fly
 - **Automatic Deployment**: GitHub Actions workflow for continuous deployment to GitHub Pages
@@ -16,7 +21,7 @@ This is a Rust workspace with multiple crates:
 
 ```
 boid-rs/
-├── boid-core/          # Core boid algorithm implementation
+├── boid-core/          # Core boid algorithm implementation (no_std compatible)
 │   ├── src/
 │   │   └── lib.rs      # Vector math, Boid, and Flock logic
 │   └── Cargo.toml
@@ -27,6 +32,14 @@ boid-rs/
 │   │   ├── index.html
 │   │   ├── index.js
 │   │   └── package.json
+│   └── Cargo.toml
+├── boid-embassy/       # ESP32-S3 Sense embedded implementation (also supports C3/C6)
+│   ├── src/
+│   │   ├── main.rs     # Main Embassy application
+│   │   ├── display.rs  # ST7789 display driver wrapper
+│   │   └── rng.rs      # Pseudo-random number generator
+│   ├── .cargo/
+│   │   └── config.toml # Build configuration
 │   └── Cargo.toml
 ├── .github/
 │   └── workflows/      # CI/CD workflows
@@ -108,16 +121,31 @@ Once the application is running in your browser:
   - Max Speed (1-10)
   - Max Force (0.01-0.5)
 
+### Embedded (ESP32-S3 Sense)
+
+For running on Xiao ESP32-S3 Sense (default) with an LED display:
+
+```bash
+# Navigate to the embassy crate
+cd boid-embassy
+
+# Build and flash to ESP32-S3
+cargo run --release
+```
+
+See [boid-embassy/README.md](boid-embassy/README.md) for detailed hardware setup and configuration.
+
 ### Using as a Library
 
 You can use the core boid algorithm in your own Rust projects:
 
+**For std environments (PC, web, etc.):**
 ```rust
-use boid_core::{Flock, BoidConfig};
+use boid_core::{FlockStd, BoidConfig};
 
 fn main() {
     // Create a flock with default configuration
-    let mut flock = Flock::new(800.0, 600.0, 100);
+    let mut flock = FlockStd::new(800.0, 600.0, 100);
 
     // Or with custom configuration
     let config = BoidConfig {
@@ -130,12 +158,35 @@ fn main() {
         alignment_weight: 1.2,
         cohesion_weight: 1.0,
     };
-    let mut custom_flock = Flock::new_with_config(800.0, 600.0, 50, config);
+    let mut custom_flock = FlockStd::new_with_config(800.0, 600.0, 50, config);
 
     // Update the simulation
     loop {
         flock.update();
         // Render or process boids...
+    }
+}
+```
+
+**For no_std environments (embedded systems):**
+```rust
+#![no_std]
+use boid_core::{Flock, Boid, BoidConfig, Vector2D};
+
+fn main() {
+    let config = BoidConfig::default();
+    let mut flock = Flock::<32>::new(240.0, 240.0, config);
+
+    // Add boids manually
+    let boid = Boid::new(
+        Vector2D::new(120.0, 120.0),
+        Vector2D::new(1.0, 0.5)
+    );
+    flock.add_boid(boid).unwrap();
+
+    // Update loop
+    loop {
+        flock.update();
     }
 }
 ```
@@ -171,13 +222,62 @@ To enable GitHub Pages:
 
 ## Development
 
+### Quick Start
+
+Before committing any changes, run:
+```bash
+make check
+```
+
+This runs all tests, linters, and format checks. See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+
+### Testing and Quality Checks
+
+**Run tests:**
+```bash
+# Test all default packages (core + WASM)
+make test
+
+# Or run all workspace tests:
+cargo test --workspace
+
+# Check embassy builds (requires ESP toolchain):
+make test-embassy
+```
+
+**Run linter:**
+```bash
+make clippy
+
+# Or manually:
+cargo clippy -p boid-core -p boid-wasm -- -D warnings
+```
+
+**Format code:**
+```bash
+make fmt
+
+# Or check formatting:
+make fmt-check
+```
+
+**Run all checks (recommended before committing):**
+```bash
+make check
+# Or with embassy:
+make check-embassy
+```
+
+**Note:** The `boid-embassy` crate is **excluded from the workspace** entirely since it requires ESP Rust toolchain (Xtensa architecture for ESP32-S3). Build it separately: `cd boid-embassy && cargo build`, or use `make test-embassy` to check it builds correctly. For C3/C6 support, see boid-embassy/README.md.
+
 ### Adding New Features
 
 1. **Core Algorithm Changes**: Modify `boid-core/src/lib.rs`
 2. **WASM Bindings**: Update `boid-wasm/src/lib.rs`
 3. **UI Changes**: Edit `boid-wasm/www/index.html` and `index.js`
+4. **Embedded Changes**: Update `boid-embassy/src/`
 
-### Testing
+### Writing Tests
 
 Always add tests for new features:
 
@@ -193,6 +293,13 @@ mod tests {
 }
 ```
 
+Run tests before committing:
+```bash
+make check
+# or
+cargo test --workspace
+```
+
 ## License
 
 MIT
@@ -205,4 +312,8 @@ MIT
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
+- Setting up your development environment
+- Running tests and checks before committing
+- Code style and best practices
+- Creating pull requests

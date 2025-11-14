@@ -1,14 +1,17 @@
+#![cfg_attr(not(feature = "std"), no_std)]
+
+#[cfg(feature = "std")]
 use rand::Rng;
 
 /// A 2D vector used for position and velocity
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Vector2D {
-    pub x: f64,
-    pub y: f64,
+    pub x: f32,
+    pub y: f32,
 }
 
 impl Vector2D {
-    pub fn new(x: f64, y: f64) -> Self {
+    pub fn new(x: f32, y: f32) -> Self {
         Self { x, y }
     }
 
@@ -16,8 +19,15 @@ impl Vector2D {
         Self { x: 0.0, y: 0.0 }
     }
 
-    pub fn magnitude(&self) -> f64 {
-        (self.x * self.x + self.y * self.y).sqrt()
+    pub fn magnitude(&self) -> f32 {
+        #[cfg(feature = "std")]
+        {
+            (self.x * self.x + self.y * self.y).sqrt()
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm::sqrtf(self.x * self.x + self.y * self.y)
+        }
     }
 
     pub fn normalize(&self) -> Self {
@@ -32,7 +42,7 @@ impl Vector2D {
         }
     }
 
-    pub fn limit(&self, max: f64) -> Self {
+    pub fn limit(&self, max: f32) -> Self {
         let mag = self.magnitude();
         if mag > max {
             let normalized = self.normalize();
@@ -45,14 +55,21 @@ impl Vector2D {
         }
     }
 
-    pub fn distance(&self, other: &Vector2D) -> f64 {
+    pub fn distance(&self, other: &Vector2D) -> f32 {
         let dx = self.x - other.x;
         let dy = self.y - other.y;
-        (dx * dx + dy * dy).sqrt()
+        #[cfg(feature = "std")]
+        {
+            (dx * dx + dy * dy).sqrt()
+        }
+        #[cfg(not(feature = "std"))]
+        {
+            libm::sqrtf(dx * dx + dy * dy)
+        }
     }
 }
 
-impl std::ops::Add for Vector2D {
+impl core::ops::Add for Vector2D {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
@@ -63,7 +80,7 @@ impl std::ops::Add for Vector2D {
     }
 }
 
-impl std::ops::Sub for Vector2D {
+impl core::ops::Sub for Vector2D {
     type Output = Self;
 
     fn sub(self, other: Self) -> Self {
@@ -74,10 +91,10 @@ impl std::ops::Sub for Vector2D {
     }
 }
 
-impl std::ops::Mul<f64> for Vector2D {
+impl core::ops::Mul<f32> for Vector2D {
     type Output = Self;
 
-    fn mul(self, scalar: f64) -> Self {
+    fn mul(self, scalar: f32) -> Self {
         Self {
             x: self.x * scalar,
             y: self.y * scalar,
@@ -85,10 +102,10 @@ impl std::ops::Mul<f64> for Vector2D {
     }
 }
 
-impl std::ops::Div<f64> for Vector2D {
+impl core::ops::Div<f32> for Vector2D {
     type Output = Self;
 
-    fn div(self, scalar: f64) -> Self {
+    fn div(self, scalar: f32) -> Self {
         Self {
             x: self.x / scalar,
             y: self.y / scalar,
@@ -96,7 +113,7 @@ impl std::ops::Div<f64> for Vector2D {
     }
 }
 
-impl std::ops::AddAssign for Vector2D {
+impl core::ops::AddAssign for Vector2D {
     fn add_assign(&mut self, other: Self) {
         self.x += other.x;
         self.y += other.y;
@@ -120,7 +137,8 @@ impl Boid {
         }
     }
 
-    pub fn random(width: f64, height: f64) -> Self {
+    #[cfg(feature = "std")]
+    pub fn random(width: f32, height: f32) -> Self {
         let mut rng = rand::thread_rng();
         let position = Vector2D::new(rng.gen_range(0.0..width), rng.gen_range(0.0..height));
         let velocity = Vector2D::new(rng.gen_range(-2.0..2.0), rng.gen_range(-2.0..2.0));
@@ -131,14 +149,14 @@ impl Boid {
         self.acceleration += force;
     }
 
-    pub fn update(&mut self, max_speed: f64, _max_force: f64) {
+    pub fn update(&mut self, max_speed: f32, _max_force: f32) {
         self.velocity += self.acceleration;
         self.velocity = self.velocity.limit(max_speed);
         self.position += self.velocity;
         self.acceleration = Vector2D::zero();
     }
 
-    pub fn wrap_edges(&mut self, width: f64, height: f64) {
+    pub fn wrap_edges(&mut self, width: f32, height: f32) {
         if self.position.x < 0.0 {
             self.position.x = width;
         } else if self.position.x > width {
@@ -154,26 +172,26 @@ impl Boid {
 }
 
 /// Configuration for the boid simulation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct BoidConfig {
-    pub max_speed: f64,
-    pub max_force: f64,
-    pub separation_distance: f64,
-    pub alignment_distance: f64,
-    pub cohesion_distance: f64,
-    pub separation_weight: f64,
-    pub alignment_weight: f64,
-    pub cohesion_weight: f64,
+    pub max_speed: f32,
+    pub max_force: f32,
+    pub separation_distance: f32,
+    pub alignment_distance: f32,
+    pub cohesion_distance: f32,
+    pub separation_weight: f32,
+    pub alignment_weight: f32,
+    pub cohesion_weight: f32,
 }
 
 impl Default for BoidConfig {
     fn default() -> Self {
         Self {
-            max_speed: 4.0,
-            max_force: 0.1,
-            separation_distance: 25.0,
-            alignment_distance: 50.0,
-            cohesion_distance: 50.0,
+            max_speed: 2.0,
+            max_force: 0.05,
+            separation_distance: 15.0,
+            alignment_distance: 25.0,
+            cohesion_distance: 25.0,
             separation_weight: 1.5,
             alignment_weight: 1.0,
             cohesion_weight: 1.0,
@@ -181,16 +199,170 @@ impl Default for BoidConfig {
     }
 }
 
-/// A collection of boids
-pub struct Flock {
-    pub boids: Vec<Boid>,
-    pub config: BoidConfig,
-    pub width: f64,
-    pub height: f64,
+/// Trait for flock behavior
+pub trait FlockBehavior {
+    fn separation(&self, boid: &Boid, config: &BoidConfig) -> Vector2D;
+    fn alignment(&self, boid: &Boid, config: &BoidConfig) -> Vector2D;
+    fn cohesion(&self, boid: &Boid, config: &BoidConfig) -> Vector2D;
+    fn seek(&self, boid: &Boid, target: Vector2D, config: &BoidConfig) -> Vector2D;
 }
 
-impl Flock {
-    pub fn new(width: f64, height: f64, count: usize) -> Self {
+/// Helper functions for boid behavior
+pub mod behavior {
+    use super::*;
+
+    pub fn separation<'a, I>(boid: &Boid, others: I, config: &BoidConfig) -> Vector2D
+    where
+        I: Iterator<Item = &'a Boid>,
+    {
+        let mut steering = Vector2D::zero();
+        let mut count = 0;
+
+        for other in others {
+            let distance = boid.position.distance(&other.position);
+            if distance > 0.0 && distance < config.separation_distance {
+                let mut diff = boid.position - other.position;
+                diff = diff.normalize();
+                diff = diff / distance;
+                steering += diff;
+                count += 1;
+            }
+        }
+
+        if count > 0 {
+            steering = steering / count as f32;
+        }
+
+        if steering.magnitude() > 0.0 {
+            steering = steering.normalize();
+            steering = steering * config.max_speed;
+            steering = steering - boid.velocity;
+            steering = steering.limit(config.max_force);
+        }
+
+        steering
+    }
+
+    pub fn alignment<'a, I>(boid: &Boid, others: I, config: &BoidConfig) -> Vector2D
+    where
+        I: Iterator<Item = &'a Boid>,
+    {
+        let mut sum = Vector2D::zero();
+        let mut count = 0;
+
+        for other in others {
+            let distance = boid.position.distance(&other.position);
+            if distance > 0.0 && distance < config.alignment_distance {
+                sum += other.velocity;
+                count += 1;
+            }
+        }
+
+        if count > 0 {
+            sum = sum / count as f32;
+            sum = sum.normalize();
+            sum = sum * config.max_speed;
+            let steering = sum - boid.velocity;
+            steering.limit(config.max_force)
+        } else {
+            Vector2D::zero()
+        }
+    }
+
+    pub fn cohesion<'a, I>(boid: &Boid, others: I, config: &BoidConfig) -> Vector2D
+    where
+        I: Iterator<Item = &'a Boid>,
+    {
+        let mut sum = Vector2D::zero();
+        let mut count = 0;
+
+        for other in others {
+            let distance = boid.position.distance(&other.position);
+            if distance > 0.0 && distance < config.cohesion_distance {
+                sum += other.position;
+                count += 1;
+            }
+        }
+
+        if count > 0 {
+            sum = sum / count as f32;
+            seek(boid, sum, config)
+        } else {
+            Vector2D::zero()
+        }
+    }
+
+    pub fn seek(boid: &Boid, target: Vector2D, config: &BoidConfig) -> Vector2D {
+        let mut desired = target - boid.position;
+        desired = desired.normalize();
+        desired = desired * config.max_speed;
+        let steering = desired - boid.velocity;
+        steering.limit(config.max_force)
+    }
+}
+
+/// A collection of boids for embedded (no_std) environments
+pub struct Flock<const N: usize> {
+    pub boids: heapless::Vec<Boid, N>,
+    pub config: BoidConfig,
+    pub width: f32,
+    pub height: f32,
+}
+
+impl<const N: usize> Flock<N> {
+    pub fn new(width: f32, height: f32, config: BoidConfig) -> Self {
+        Self {
+            boids: heapless::Vec::new(),
+            config,
+            width,
+            height,
+        }
+    }
+
+    pub fn add_boid(&mut self, boid: Boid) -> Result<(), Boid> {
+        self.boids.push(boid)
+    }
+
+    pub fn update(&mut self) {
+        // Calculate forces for all boids
+        let mut forces = heapless::Vec::<Vector2D, N>::new();
+
+        for boid in self.boids.iter() {
+            let sep = behavior::separation(boid, self.boids.iter(), &self.config)
+                * self.config.separation_weight;
+            let ali = behavior::alignment(boid, self.boids.iter(), &self.config)
+                * self.config.alignment_weight;
+            let coh = behavior::cohesion(boid, self.boids.iter(), &self.config)
+                * self.config.cohesion_weight;
+            let _ = forces.push(sep + ali + coh);
+        }
+
+        // Apply forces and update boids
+        for (boid, force) in self.boids.iter_mut().zip(forces.iter()) {
+            boid.apply_force(*force);
+            boid.update(self.config.max_speed, self.config.max_force);
+            boid.wrap_edges(self.width, self.height);
+        }
+    }
+
+    pub fn resize(&mut self, width: f32, height: f32) {
+        self.width = width;
+        self.height = height;
+    }
+}
+
+/// A collection of boids for std environments
+#[cfg(feature = "std")]
+pub struct FlockStd {
+    pub boids: Vec<Boid>,
+    pub config: BoidConfig,
+    pub width: f32,
+    pub height: f32,
+}
+
+#[cfg(feature = "std")]
+impl FlockStd {
+    pub fn new(width: f32, height: f32, count: usize) -> Self {
         let boids = (0..count).map(|_| Boid::random(width, height)).collect();
 
         Self {
@@ -201,7 +373,7 @@ impl Flock {
         }
     }
 
-    pub fn new_with_config(width: f64, height: f64, count: usize, config: BoidConfig) -> Self {
+    pub fn new_with_config(width: f32, height: f32, count: usize, config: BoidConfig) -> Self {
         let boids = (0..count).map(|_| Boid::random(width, height)).collect();
 
         Self {
@@ -212,100 +384,18 @@ impl Flock {
         }
     }
 
-    /// Separation: steer to avoid crowding local flockmates
-    fn separation(&self, boid: &Boid) -> Vector2D {
-        let mut steering = Vector2D::zero();
-        let mut count = 0;
-
-        for other in &self.boids {
-            let distance = boid.position.distance(&other.position);
-            if distance > 0.0 && distance < self.config.separation_distance {
-                let mut diff = boid.position - other.position;
-                diff = diff.normalize();
-                diff = diff / distance; // Weight by distance
-                steering += diff;
-                count += 1;
-            }
-        }
-
-        if count > 0 {
-            steering = steering / count as f64;
-        }
-
-        if steering.magnitude() > 0.0 {
-            steering = steering.normalize();
-            steering = steering * self.config.max_speed;
-            steering = steering - boid.velocity;
-            steering = steering.limit(self.config.max_force);
-        }
-
-        steering
-    }
-
-    /// Alignment: steer towards the average heading of local flockmates
-    fn alignment(&self, boid: &Boid) -> Vector2D {
-        let mut sum = Vector2D::zero();
-        let mut count = 0;
-
-        for other in &self.boids {
-            let distance = boid.position.distance(&other.position);
-            if distance > 0.0 && distance < self.config.alignment_distance {
-                sum += other.velocity;
-                count += 1;
-            }
-        }
-
-        if count > 0 {
-            sum = sum / count as f64;
-            sum = sum.normalize();
-            sum = sum * self.config.max_speed;
-            let steering = sum - boid.velocity;
-            steering.limit(self.config.max_force)
-        } else {
-            Vector2D::zero()
-        }
-    }
-
-    /// Cohesion: steer to move toward the average position of local flockmates
-    fn cohesion(&self, boid: &Boid) -> Vector2D {
-        let mut sum = Vector2D::zero();
-        let mut count = 0;
-
-        for other in &self.boids {
-            let distance = boid.position.distance(&other.position);
-            if distance > 0.0 && distance < self.config.cohesion_distance {
-                sum += other.position;
-                count += 1;
-            }
-        }
-
-        if count > 0 {
-            sum = sum / count as f64;
-            self.seek(boid, sum)
-        } else {
-            Vector2D::zero()
-        }
-    }
-
-    /// Seek a target position
-    fn seek(&self, boid: &Boid, target: Vector2D) -> Vector2D {
-        let mut desired = target - boid.position;
-        desired = desired.normalize();
-        desired = desired * self.config.max_speed;
-        let steering = desired - boid.velocity;
-        steering.limit(self.config.max_force)
-    }
-
-    /// Apply all boid rules and update positions
     pub fn update(&mut self) {
         // Calculate forces for all boids
         let forces: Vec<Vector2D> = self
             .boids
             .iter()
             .map(|boid| {
-                let sep = self.separation(boid) * self.config.separation_weight;
-                let ali = self.alignment(boid) * self.config.alignment_weight;
-                let coh = self.cohesion(boid) * self.config.cohesion_weight;
+                let sep = behavior::separation(boid, self.boids.iter(), &self.config)
+                    * self.config.separation_weight;
+                let ali = behavior::alignment(boid, self.boids.iter(), &self.config)
+                    * self.config.alignment_weight;
+                let coh = behavior::cohesion(boid, self.boids.iter(), &self.config)
+                    * self.config.cohesion_weight;
                 sep + ali + coh
             })
             .collect();
@@ -322,7 +412,7 @@ impl Flock {
         self.boids.push(boid);
     }
 
-    pub fn resize(&mut self, width: f64, height: f64) {
+    pub fn resize(&mut self, width: f32, height: f32) {
         self.width = width;
         self.height = height;
     }
@@ -408,7 +498,7 @@ mod tests {
 
     #[test]
     fn test_flock_creation() {
-        let flock = Flock::new(800.0, 600.0, 50);
+        let flock = FlockStd::new(800.0, 600.0, 50);
         assert_eq!(flock.boids.len(), 50);
         assert_eq!(flock.width, 800.0);
         assert_eq!(flock.height, 600.0);
@@ -416,7 +506,7 @@ mod tests {
 
     #[test]
     fn test_flock_update() {
-        let mut flock = Flock::new(800.0, 600.0, 10);
+        let mut flock = FlockStd::new(800.0, 600.0, 10);
         let initial_positions: Vec<_> = flock.boids.iter().map(|b| b.position).collect();
 
         flock.update();
@@ -433,7 +523,7 @@ mod tests {
 
     #[test]
     fn test_flock_add_boid() {
-        let mut flock = Flock::new(800.0, 600.0, 10);
+        let mut flock = FlockStd::new(800.0, 600.0, 10);
         let initial_count = flock.boids.len();
 
         let boid = Boid::random(800.0, 600.0);

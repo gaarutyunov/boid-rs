@@ -6,5 +6,11 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
-rand = { workspace = true }
-getrandom = { workspace = true }
+rand = { workspace = true, optional = true }
+getrandom = { workspace = true, optional = true }
+libm = { version = "0.2", default-features = false }
+heapless = "0.8"
+
+[features]
+default = ["std"]
+std = ["rand", "getrandom"]
