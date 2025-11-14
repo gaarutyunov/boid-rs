@@ -438,12 +438,8 @@ impl FlockStd {
             boid.apply_force(*force);
             boid.update(self.config.max_speed, self.config.max_force);
 
-            // Use containment when there's a target, wrap when flying freely
-            if target.is_some() {
-                boid.contain_within_bounds(self.width, self.height);
-            } else {
-                boid.contain_within_bounds(self.width, self.height);
-            }
+            // Keep boids within canvas bounds
+            boid.contain_within_bounds(self.width, self.height);
         }
     }
 
