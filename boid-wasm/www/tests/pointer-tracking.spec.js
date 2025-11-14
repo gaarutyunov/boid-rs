@@ -46,22 +46,13 @@ test.describe('Boid Pointer Tracking', () => {
     const canvas = await page.locator('#canvas');
     const box = await canvas.boundingBox();
 
-    // Get initial boid positions
+    // Get average boid position
     const getAverageBoidPosition = async () => {
       return await page.evaluate(() => {
         if (!window.simulation) return null;
-        const boids = window.simulation.flock?.boids || [];
-        if (boids.length === 0) return null;
-
-        let sumX = 0, sumY = 0;
-        for (const boid of boids) {
-          sumX += boid.position.x;
-          sumY += boid.position.y;
-        }
-        return {
-          x: sumX / boids.length,
-          y: sumY / boids.length,
-        };
+        const avgPos = window.simulation.get_average_position();
+        if (!avgPos) return null;
+        return { x: avgPos[0], y: avgPos[1] };
       });
     };
 
@@ -159,14 +150,7 @@ test.describe('Boid Pointer Tracking', () => {
     // Check all boids are within bounds
     const boidsInBounds = await page.evaluate(({ width, height }) => {
       if (!window.simulation) return false;
-      const boids = window.simulation.flock?.boids || [];
-
-      return boids.every(boid => {
-        return boid.position.x >= 0 &&
-               boid.position.x <= width &&
-               boid.position.y >= 0 &&
-               boid.position.y <= height;
-      });
+      return window.simulation.all_boids_within_bounds(width, height);
     }, { width: canvasWidth, height: canvasHeight });
 
     expect(boidsInBounds).toBe(true);

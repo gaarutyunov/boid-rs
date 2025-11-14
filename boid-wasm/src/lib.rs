@@ -202,6 +202,34 @@ impl BoidSimulation {
         self.pointer_pressed = false;
         console_log!("Pointer released");
     }
+
+    pub fn get_average_position(&self) -> Option<Vec<f64>> {
+        if self.flock.boids.is_empty() {
+            return None;
+        }
+
+        let mut sum_x = 0.0_f32;
+        let mut sum_y = 0.0_f32;
+        for boid in &self.flock.boids {
+            sum_x += boid.position.x;
+            sum_y += boid.position.y;
+        }
+
+        let len = self.flock.boids.len() as f32;
+        Some(vec![
+            (sum_x / len) as f64,
+            (sum_y / len) as f64,
+        ])
+    }
+
+    pub fn all_boids_within_bounds(&self, width: f64, height: f64) -> bool {
+        self.flock.boids.iter().all(|boid| {
+            boid.position.x >= 0.0
+                && boid.position.x <= width as f32
+                && boid.position.y >= 0.0
+                && boid.position.y <= height as f32
+        })
+    }
 }
 
 #[cfg(test)]
