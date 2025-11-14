@@ -222,13 +222,52 @@ To enable GitHub Pages:
 
 ## Development
 
+### Quick Start
+
+Before committing any changes, run:
+```bash
+make check
+```
+
+This runs all tests, linters, and format checks. See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+
+### Testing and Quality Checks
+
+**Run tests:**
+```bash
+# Test core and WASM packages
+make test
+
+# Or manually:
+cargo test -p boid-core -p boid-wasm
+```
+
+**Run linter:**
+```bash
+make clippy
+
+# Or manually:
+cargo clippy -p boid-core -p boid-wasm -- -D warnings
+```
+
+**Format code:**
+```bash
+make fmt
+
+# Or check formatting:
+make fmt-check
+```
+
+**Note:** The `boid-embassy` crate requires special embedded toolchain setup and cannot be tested in the standard environment. Always use `-p boid-core -p boid-wasm` when running workspace commands.
+
 ### Adding New Features
 
 1. **Core Algorithm Changes**: Modify `boid-core/src/lib.rs`
 2. **WASM Bindings**: Update `boid-wasm/src/lib.rs`
 3. **UI Changes**: Edit `boid-wasm/www/index.html` and `index.js`
+4. **Embedded Changes**: Update `boid-embassy/src/`
 
-### Testing
+### Writing Tests
 
 Always add tests for new features:
 
@@ -244,6 +283,11 @@ mod tests {
 }
 ```
 
+Run tests before committing:
+```bash
+cargo test -p boid-core -p boid-wasm
+```
+
 ## License
 
 MIT
@@ -256,4 +300,8 @@ MIT
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
+- Setting up your development environment
+- Running tests and checks before committing
+- Code style and best practices
+- Creating pull requests

@@ -328,9 +328,12 @@ impl<const N: usize> Flock<N> {
         let mut forces = heapless::Vec::<Vector2D, N>::new();
 
         for boid in self.boids.iter() {
-            let sep = behavior::separation(boid, self.boids.iter(), &self.config) * self.config.separation_weight;
-            let ali = behavior::alignment(boid, self.boids.iter(), &self.config) * self.config.alignment_weight;
-            let coh = behavior::cohesion(boid, self.boids.iter(), &self.config) * self.config.cohesion_weight;
+            let sep = behavior::separation(boid, self.boids.iter(), &self.config)
+                * self.config.separation_weight;
+            let ali = behavior::alignment(boid, self.boids.iter(), &self.config)
+                * self.config.alignment_weight;
+            let coh = behavior::cohesion(boid, self.boids.iter(), &self.config)
+                * self.config.cohesion_weight;
             let _ = forces.push(sep + ali + coh);
         }
 
@@ -387,9 +390,12 @@ impl FlockStd {
             .boids
             .iter()
             .map(|boid| {
-                let sep = behavior::separation(boid, self.boids.iter(), &self.config) * self.config.separation_weight;
-                let ali = behavior::alignment(boid, self.boids.iter(), &self.config) * self.config.alignment_weight;
-                let coh = behavior::cohesion(boid, self.boids.iter(), &self.config) * self.config.cohesion_weight;
+                let sep = behavior::separation(boid, self.boids.iter(), &self.config)
+                    * self.config.separation_weight;
+                let ali = behavior::alignment(boid, self.boids.iter(), &self.config)
+                    * self.config.alignment_weight;
+                let coh = behavior::cohesion(boid, self.boids.iter(), &self.config)
+                    * self.config.cohesion_weight;
                 sep + ali + coh
             })
             .collect();

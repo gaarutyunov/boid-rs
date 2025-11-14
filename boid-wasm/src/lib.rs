@@ -80,7 +80,8 @@ impl BoidSimulation {
         let angle = (boid.velocity.y as f64).atan2(boid.velocity.x as f64);
 
         self.context.save();
-        self.context.translate(boid.position.x as f64, boid.position.y as f64)?;
+        self.context
+            .translate(boid.position.x as f64, boid.position.y as f64)?;
         self.context.rotate(angle)?;
 
         // Draw a triangle pointing in the direction of movement

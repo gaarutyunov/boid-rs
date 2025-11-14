@@ -50,11 +50,11 @@ async fn main(_spawner: Spawner) {
 
     // SPI pins for Xiao ESP32C3
     // These are common pins for SPI displays
-    let sclk = io.pins.gpio8;  // SCK
+    let sclk = io.pins.gpio8; // SCK
     let mosi = io.pins.gpio10; // MOSI (COPI)
-    let cs = io.pins.gpio9;    // CS
-    let dc = io.pins.gpio6;    // DC (Data/Command)
-    let rst = io.pins.gpio7;   // RST (Reset)
+    let cs = io.pins.gpio9; // CS
+    let dc = io.pins.gpio6; // DC (Data/Command)
+    let rst = io.pins.gpio7; // RST (Reset)
 
     info!("Initializing SPI...");
 
@@ -152,8 +152,11 @@ fn draw_boid(display: &mut DisplayWrapper, boid: &Boid) {
         triangle.draw(display).ok();
     } else {
         // If not moving, just draw a circle
-        let circle = Circle::new(Point::new(x - BOID_SIZE as i32, y - BOID_SIZE as i32), BOID_SIZE * 2)
-            .into_styled(PrimitiveStyle::with_fill(Rgb565::GREEN));
+        let circle = Circle::new(
+            Point::new(x - BOID_SIZE as i32, y - BOID_SIZE as i32),
+            BOID_SIZE * 2,
+        )
+        .into_styled(PrimitiveStyle::with_fill(Rgb565::GREEN));
         circle.draw(display).ok();
     }
 }
