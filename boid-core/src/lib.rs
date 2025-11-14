@@ -126,6 +126,7 @@ pub struct Boid {
     pub position: Vector2D,
     pub velocity: Vector2D,
     pub acceleration: Vector2D,
+    pub wander_angle: f32,
 }
 
 impl Boid {
@@ -134,6 +135,7 @@ impl Boid {
             position,
             velocity,
             acceleration: Vector2D::zero(),
+            wander_angle: 0.0,
         }
     }
 
@@ -204,6 +206,7 @@ pub struct BoidConfig {
     pub alignment_weight: f32,
     pub cohesion_weight: f32,
     pub seek_weight: f32,
+    pub wander_radius: f32,
 }
 
 impl Default for BoidConfig {
@@ -218,6 +221,7 @@ impl Default for BoidConfig {
             alignment_weight: 1.0,
             cohesion_weight: 1.0,
             seek_weight: 8.0,
+            wander_radius: 0.1,
         }
     }
 }
@@ -322,6 +326,28 @@ pub mod behavior {
         let steering = desired - boid.velocity;
         steering.limit(config.max_force)
     }
+
+    #[cfg(feature = "std")]
+    pub fn wander(boid: &mut Boid, config: &BoidConfig) -> Vector2D {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+
+        // Update wander angle with small random change
+        boid.wander_angle += rng.gen_range(-0.05..0.05);
+
+        // Convert angle to vector
+        #[cfg(feature = "std")]
+        let (sin, cos) = (boid.wander_angle.sin(), boid.wander_angle.cos());
+
+        #[cfg(not(feature = "std"))]
+        let (sin, cos) = (libm::sinf(boid.wander_angle), libm::cosf(boid.wander_angle));
+
+        let mut wander_force = Vector2D::new(cos, sin);
+        wander_force = wander_force.normalize();
+        wander_force = wander_force * config.wander_radius;
+
+        wander_force
+    }
 }
 
 /// A collection of boids for embedded (no_std) environments
@@ -412,6 +438,15 @@ impl FlockStd {
     }
 
     pub fn update_with_target(&mut self, target: Option<Vector2D>) {
+        // First update wander angles if seeking
+        if target.is_some() {
+            use rand::Rng;
+            let mut rng = rand::thread_rng();
+            for boid in self.boids.iter_mut() {
+                boid.wander_angle += rng.gen_range(-0.05..0.05);
+            }
+        }
+
         // Calculate forces for all boids
         let forces: Vec<Vector2D> = self
             .boids
@@ -424,14 +459,23 @@ impl FlockStd {
                 let coh = behavior::cohesion(boid, self.boids.iter(), &self.config)
                     * self.config.cohesion_weight;
 
-                // Add seek behavior if target is present
-                let seek_force = if let Some(target_pos) = target {
-                    behavior::seek(boid, target_pos, &self.config) * self.config.seek_weight
+                // Add seek and wander behaviors if target is present
+                let (seek_force, wander_force) = if let Some(target_pos) = target {
+                    let seek =
+                        behavior::seek(boid, target_pos, &self.config) * self.config.seek_weight;
+
+                    // Calculate wander using the updated angle
+                    let (sin, cos) = (boid.wander_angle.sin(), boid.wander_angle.cos());
+                    let mut wander = Vector2D::new(cos, sin);
+                    wander = wander.normalize();
+                    wander = wander * self.config.wander_radius;
+
+                    (seek, wander)
                 } else {
-                    Vector2D::zero()
+                    (Vector2D::zero(), Vector2D::zero())
                 };
 
-                sep + ali + coh + seek_force
+                sep + ali + coh + seek_force + wander_force
             })
             .collect();
 
