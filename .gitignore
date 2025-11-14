@@ -7,8 +7,6 @@ Cargo.lock
 boid-wasm/www/pkg
 *.wasm
 node_modules/
-package-lock.json
-.package-lock.json
 
 # IDE
 .idea
