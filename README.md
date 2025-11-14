@@ -235,11 +235,14 @@ This runs all tests, linters, and format checks. See [CONTRIBUTING.md](CONTRIBUT
 
 **Run tests:**
 ```bash
-# Test core and WASM packages
+# Test all default packages (core + WASM)
 make test
 
-# Or manually:
-cargo test -p boid-core -p boid-wasm
+# Or run all workspace tests:
+cargo test --workspace
+
+# Check embassy builds (requires nightly + RISC-V):
+make test-embassy
 ```
 
 **Run linter:**
@@ -258,7 +261,14 @@ make fmt
 make fmt-check
 ```
 
-**Note:** The `boid-embassy` crate requires special embedded toolchain setup and cannot be tested in the standard environment. Always use `-p boid-core -p boid-wasm` when running workspace commands.
+**Run all checks (recommended before committing):**
+```bash
+make check
+# Or with embassy:
+make check-embassy
+```
+
+**Note:** The `boid-embassy` crate is **excluded from the workspace** entirely since it requires nightly toolchain and RISC-V target. Build it separately: `cd boid-embassy && cargo build`, or use `make test-embassy` to check it builds correctly.
 
 ### Adding New Features
 
@@ -285,7 +295,9 @@ mod tests {
 
 Run tests before committing:
 ```bash
-cargo test -p boid-core -p boid-wasm
+make check
+# or
+cargo test --workspace
 ```
 
 ## License

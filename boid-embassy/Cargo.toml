@@ -25,14 +25,6 @@ static_cell = "2.1"
 heapless = "0.8"
 libm = "0.2"
 
-[profile.dev]
-opt-level = "z"
-
-[profile.release]
-opt-level = "z"
-lto = true
-codegen-units = 1
-
 [features]
 default = ["esp32c3"]
 esp32c3 = []

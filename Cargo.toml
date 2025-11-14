@@ -2,8 +2,10 @@
 members = [
     "boid-core",
     "boid-wasm",
-    "boid-embassy",
 ]
+# Note: boid-embassy is intentionally excluded from the workspace
+# It requires nightly toolchain and RISC-V target, making it incompatible
+# with standard workspace operations. Build it separately: cd boid-embassy && cargo build
 resolver = "2"
 
 [workspace.package]
@@ -19,3 +21,12 @@ web-sys = "0.3"
 js-sys = "0.3"
 rand = "0.8"
 getrandom = { version = "0.2", features = ["js"] }
+
+# Profile settings for embedded builds (applies to all packages)
+[profile.dev]
+opt-level = "z"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1

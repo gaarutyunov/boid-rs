@@ -21,13 +21,24 @@ Thank you for your interest in contributing to this project! This guide will hel
 # Quick check - runs all standard environment checks
 make check
 
+# Or if you have nightly + RISC-V toolchain (for embassy):
+make check-embassy
+
 # Or manually run each check:
-cargo test -p boid-core -p boid-wasm    # Run tests
+cargo test --workspace                   # Run all workspace tests
 cargo clippy -p boid-core -p boid-wasm -- -D warnings  # Run linter
 cargo fmt --all -- --check              # Check formatting
 ```
 
 If any of these fail, fix the issues before committing.
+
+### Workspace Configuration
+
+The `boid-embassy` crate is **excluded from the workspace** entirely:
+- It requires nightly toolchain and RISC-V target incompatible with standard builds
+- `cargo test --workspace` runs successfully without trying to build embassy
+- Build embassy separately: `cd boid-embassy && cargo build`
+- Use `make test-embassy` to check the embassy crate builds correctly
 
 ### Fixing Issues
 
@@ -149,18 +160,28 @@ We follow standard Rust conventions:
 
 ## Common Issues
 
-### "profiles for the non root package will be ignored"
-This is a warning you can ignore. It occurs because `boid-embassy` has its own profile settings.
+### Embassy is not in the workspace
+The `boid-embassy` crate is intentionally excluded from the workspace because it requires nightly toolchain and RISC-V target. This is by design - build it separately when needed.
 
-### Embassy crate won't build in tests
-The embassy crate requires special embedded toolchain configuration. Always test specific packages:
+### Testing Embassy
+The embassy crate is excluded from default workspace members. To test it:
 ```bash
-cargo test -p boid-core -p boid-wasm
+# Check it builds correctly
+make test-embassy
+
+# Or manually with nightly:
+cd boid-embassy
+cargo +nightly check --target riscv32imc-unknown-none-elf
+
+# Or run/flash to actual hardware:
+cd boid-embassy
+cargo run --release
 ```
-Instead of:
-```bash
-cargo test --workspace  # This will fail
-```
+
+**Prerequisites for embassy:**
+- Nightly toolchain: `rustup toolchain install nightly`
+- RISC-V target: `rustup target add riscv32imc-unknown-none-elf --toolchain nightly`
+- espflash: `cargo install espflash`
 
 ### WASM target not installed
 ```bash
