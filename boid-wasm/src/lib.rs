@@ -216,10 +216,7 @@ impl BoidSimulation {
         }
 
         let len = self.flock.boids.len() as f32;
-        Some(vec![
-            (sum_x / len) as f64,
-            (sum_y / len) as f64,
-        ])
+        Some(vec![(sum_x / len) as f64, (sum_y / len) as f64])
     }
 
     pub fn all_boids_within_bounds(&self, width: f64, height: f64) -> bool {
