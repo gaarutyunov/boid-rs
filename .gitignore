@@ -22,3 +22,7 @@ Thumbs.db
 # Build artifacts
 dist/
 build/
+
+# Playwright
+playwright-report/
+test-results/
