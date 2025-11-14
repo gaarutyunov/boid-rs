@@ -23,6 +23,7 @@ pub struct BoidSimulation {
     thumb_position: Option<Vector2D>,
     index_position: Option<Vector2D>,
     video_element: Option<HtmlVideoElement>,
+    wander_enabled: bool,
 }
 
 #[wasm_bindgen]
@@ -62,6 +63,7 @@ impl BoidSimulation {
             thumb_position: None,
             index_position: None,
             video_element: None,
+            wander_enabled: false,
         })
     }
 
@@ -182,6 +184,23 @@ impl BoidSimulation {
 
     pub fn set_seek_weight(&mut self, weight: f64) {
         self.flock.config.seek_weight = weight as f32;
+    }
+
+    pub fn set_wander_radius(&mut self, radius: f64) {
+        self.flock.config.wander_radius = radius as f32;
+    }
+
+    pub fn set_wander_enabled(&mut self, enabled: bool) {
+        self.wander_enabled = enabled;
+        self.flock.config.wander_enabled = enabled;
+        console_log!(
+            "Wander behavior {}",
+            if enabled { "enabled" } else { "disabled" }
+        );
+    }
+
+    pub fn get_wander_enabled(&self) -> bool {
+        self.wander_enabled
     }
 
     pub fn handle_pointer_down(&mut self, x: f64, y: f64) {

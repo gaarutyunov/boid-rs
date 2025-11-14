@@ -207,6 +207,7 @@ pub struct BoidConfig {
     pub cohesion_weight: f32,
     pub seek_weight: f32,
     pub wander_radius: f32,
+    pub wander_enabled: bool,
 }
 
 impl Default for BoidConfig {
@@ -222,6 +223,7 @@ impl Default for BoidConfig {
             cohesion_weight: 1.0,
             seek_weight: 8.0,
             wander_radius: 0.1,
+            wander_enabled: false,
         }
     }
 }
@@ -438,8 +440,8 @@ impl FlockStd {
     }
 
     pub fn update_with_target(&mut self, target: Option<Vector2D>) {
-        // First update wander angles if seeking
-        if target.is_some() {
+        // Update wander angles if wander is enabled or if seeking
+        if self.config.wander_enabled || target.is_some() {
             use rand::Rng;
             let mut rng = rand::thread_rng();
             for boid in self.boids.iter_mut() {
@@ -459,20 +461,22 @@ impl FlockStd {
                 let coh = behavior::cohesion(boid, self.boids.iter(), &self.config)
                     * self.config.cohesion_weight;
 
-                // Add seek and wander behaviors if target is present
-                let (seek_force, wander_force) = if let Some(target_pos) = target {
-                    let seek =
-                        behavior::seek(boid, target_pos, &self.config) * self.config.seek_weight;
+                // Add seek behavior if target is present
+                let seek_force = if let Some(target_pos) = target {
+                    behavior::seek(boid, target_pos, &self.config) * self.config.seek_weight
+                } else {
+                    Vector2D::zero()
+                };
 
+                // Add wander behavior if enabled
+                let wander_force = if self.config.wander_enabled || target.is_some() {
                     // Calculate wander using the updated angle
                     let (sin, cos) = (boid.wander_angle.sin(), boid.wander_angle.cos());
                     let mut wander = Vector2D::new(cos, sin);
                     wander = wander.normalize();
-                    wander = wander * self.config.wander_radius;
-
-                    (seek, wander)
+                    wander * self.config.wander_radius
                 } else {
-                    (Vector2D::zero(), Vector2D::zero())
+                    Vector2D::zero()
                 };
 
                 sep + ali + coh + seek_force + wander_force
