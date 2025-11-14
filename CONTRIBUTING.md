@@ -6,9 +6,9 @@ Thank you for your interest in contributing to this project! This guide will hel
 
 - [Rust](https://www.rust-lang.org/tools/install) (latest stable)
 - [wasm-pack](https://rustwasm.github.io/wasm-pack/installer/) (for WASM development)
-- For embedded development:
-  - Rust nightly: `rustup toolchain install nightly`
-  - RISC-V target: `rustup target add riscv32imc-unknown-none-elf --toolchain nightly`
+- For embedded development (ESP32-S3 Sense):
+  - ESP Rust toolchain: `cargo install espup && espup install`
+  - Environment setup: `. $HOME/export-esp.sh` (add to your shell profile)
   - espflash: `cargo install espflash`
 
 ## Development Workflow
@@ -21,7 +21,7 @@ Thank you for your interest in contributing to this project! This guide will hel
 # Quick check - runs all standard environment checks
 make check
 
-# Or if you have nightly + RISC-V toolchain (for embassy):
+# Or if you have ESP toolchain (for embassy):
 make check-embassy
 
 # Or manually run each check:
@@ -35,7 +35,7 @@ If any of these fail, fix the issues before committing.
 ### Workspace Configuration
 
 The `boid-embassy` crate is **excluded from the workspace** entirely:
-- It requires nightly toolchain and RISC-V target incompatible with standard builds
+- It requires ESP Rust toolchain (Xtensa architecture) incompatible with standard builds
 - `cargo test --workspace` runs successfully without trying to build embassy
 - Build embassy separately: `cd boid-embassy && cargo build`
 - Use `make test-embassy` to check the embassy crate builds correctly
@@ -161,7 +161,7 @@ We follow standard Rust conventions:
 ## Common Issues
 
 ### Embassy is not in the workspace
-The `boid-embassy` crate is intentionally excluded from the workspace because it requires nightly toolchain and RISC-V target. This is by design - build it separately when needed.
+The `boid-embassy` crate is intentionally excluded from the workspace because it requires ESP Rust toolchain (Xtensa architecture for ESP32-S3). This is by design - build it separately when needed.
 
 ### Testing Embassy
 The embassy crate is excluded from default workspace members. To test it:
@@ -169,19 +169,24 @@ The embassy crate is excluded from default workspace members. To test it:
 # Check it builds correctly
 make test-embassy
 
-# Or manually with nightly:
+# Or manually with ESP toolchain:
 cd boid-embassy
-cargo +nightly check --target riscv32imc-unknown-none-elf
+cargo +esp check --target xtensa-esp32s3-none-elf
 
 # Or run/flash to actual hardware:
 cd boid-embassy
 cargo run --release
 ```
 
-**Prerequisites for embassy:**
+**Prerequisites for embassy (ESP32-S3):**
+- ESP Rust toolchain: `cargo install espup && espup install`
+- Environment: `. $HOME/export-esp.sh` (run after espup install)
+- espflash: `cargo install espflash`
+
+**For ESP32-C3/C6 (RISC-V architecture):**
 - Nightly toolchain: `rustup toolchain install nightly`
 - RISC-V target: `rustup target add riscv32imc-unknown-none-elf --toolchain nightly`
-- espflash: `cargo install espflash`
+- Update Cargo.toml features and .cargo/config.toml (see boid-embassy/README.md)
 
 ### WASM target not installed
 ```bash

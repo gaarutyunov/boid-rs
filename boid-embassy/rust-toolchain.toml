@@ -1,4 +1,3 @@
 [toolchain]
-channel = "nightly"
+channel = "esp"
 components = ["rust-src", "rustfmt", "clippy"]
-targets = ["riscv32imc-unknown-none-elf"]

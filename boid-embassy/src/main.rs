@@ -37,7 +37,7 @@ const BOID_SIZE: u32 = 3;
 
 #[main]
 async fn main(_spawner: Spawner) {
-    info!("Starting boid simulation on ESP32!");
+    info!("Starting boid simulation on ESP32-S3!");
 
     let peripherals = Peripherals::take();
     let system = SystemControl::new(peripherals.SYSTEM);
@@ -48,13 +48,13 @@ async fn main(_spawner: Spawner) {
 
     let io = Io::new(peripherals.GPIO, peripherals.IO_MUX);
 
-    // SPI pins for Xiao ESP32C3
+    // SPI pins for Xiao ESP32-S3 Sense
     // These are common pins for SPI displays
     let sclk = io.pins.gpio8; // SCK
-    let mosi = io.pins.gpio10; // MOSI (COPI)
-    let cs = io.pins.gpio9; // CS
-    let dc = io.pins.gpio6; // DC (Data/Command)
-    let rst = io.pins.gpio7; // RST (Reset)
+    let mosi = io.pins.gpio9; // MOSI (COPI)
+    let cs = io.pins.gpio7; // CS
+    let dc = io.pins.gpio4; // DC (Data/Command)
+    let rst = io.pins.gpio5; // RST (Reset)
 
     info!("Initializing SPI...");
 

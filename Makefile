@@ -6,7 +6,7 @@ help:
 	@echo "  make check         - Run all checks (tests, clippy, format) for std packages"
 	@echo "  make test          - Run tests for boid-core and boid-wasm"
 	@echo "  make test-all      - Run tests for all packages including workspace tests"
-	@echo "  make test-embassy  - Check boid-embassy builds (requires nightly + RISC-V)"
+	@echo "  make test-embassy  - Check boid-embassy builds (requires ESP toolchain)"
 	@echo "  make clippy        - Run clippy linter on std packages"
 	@echo "  make fmt           - Format all code"
 	@echo "  make fmt-check     - Check code formatting without modifying"
@@ -18,7 +18,7 @@ help:
 check: test clippy fmt-check
 	@echo "✅ All checks passed!"
 
-# Run all checks including embassy (requires nightly toolchain)
+# Run all checks including embassy (requires ESP toolchain)
 check-embassy: test-all test-embassy clippy fmt-check
 	@echo "✅ All checks including embassy passed!"
 
@@ -36,18 +36,22 @@ test-all:
 	@cargo test --workspace
 	@echo "✅ Workspace tests passed!"
 
-# Check that embassy builds correctly (requires nightly + RISC-V target)
+# Check that embassy builds correctly (requires ESP Rust toolchain)
 test-embassy:
 	@echo "Checking boid-embassy builds..."
-	@if ! rustup toolchain list | grep -q nightly; then \
-		echo "❌ Nightly toolchain not installed. Run: rustup toolchain install nightly"; \
+	@if ! rustup toolchain list | grep -q esp; then \
+		echo "❌ ESP toolchain not installed. Install with:"; \
+		echo "   cargo install espup && espup install"; \
+		echo "   Then source: . $$HOME/export-esp.sh"; \
 		exit 1; \
 	fi
-	@if ! rustup target list --installed --toolchain nightly | grep -q riscv32imc-unknown-none-elf; then \
-		echo "❌ RISC-V target not installed. Run: rustup target add riscv32imc-unknown-none-elf --toolchain nightly"; \
+	@if [ ! -f "$$HOME/export-esp.sh" ]; then \
+		echo "❌ ESP environment not set up. Run:"; \
+		echo "   espup install"; \
+		echo "   . $$HOME/export-esp.sh"; \
 		exit 1; \
 	fi
-	@cd boid-embassy && cargo +nightly check --target riscv32imc-unknown-none-elf
+	@cd boid-embassy && cargo +esp check --target xtensa-esp32s3-none-elf
 	@echo "✅ Embassy build check passed!"
 
 # Run clippy linter

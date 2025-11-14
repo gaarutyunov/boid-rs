@@ -1,8 +1,8 @@
-/* ESP32-C3 memory layout */
+/* ESP32-S3 memory layout */
 MEMORY
 {
-  /* SRAM */
-  RAM : ORIGIN = 0x3FC80000, LENGTH = 400K
+  /* Internal SRAM - ESP32-S3 has 512KB */
+  RAM : ORIGIN = 0x3FC88000, LENGTH = 320K
 
   /* External flash */
   ROM : ORIGIN = 0x42000000, LENGTH = 4M

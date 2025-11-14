@@ -2,14 +2,14 @@
 
 A flocking behavior simulation implementing Craig Reynolds' Boid algorithm, built with Rust for multiple platforms:
 - WebAssembly for web browsers
-- Embedded systems (ESP32-C3/C6) with Embassy framework
+- Embedded systems (ESP32-S3 Sense, C3, C6) with Embassy framework
 
 ## Features
 
 - **Pure Rust Implementation**: Core boid algorithm written in Rust with comprehensive tests
 - **no_std Support**: Core algorithm works on embedded systems without standard library
 - **WebAssembly Frontend**: Interactive canvas-based visualization running in the browser
-- **Embedded Support**: Runs on ESP32-C3/C6 microcontrollers with LED displays
+- **Embedded Support**: Runs on ESP32-S3 Sense, C3, and C6 microcontrollers with LED displays
 - **Embassy Framework**: Async runtime for efficient embedded execution
 - **Touch Support**: Works on both desktop (mouse) and mobile (touch) devices
 - **Real-time Controls**: Adjust simulation parameters on the fly
@@ -33,7 +33,7 @@ boid-rs/
 │   │   ├── index.js
 │   │   └── package.json
 │   └── Cargo.toml
-├── boid-embassy/       # ESP32-C3/C6 embedded implementation
+├── boid-embassy/       # ESP32-S3 Sense embedded implementation (also supports C3/C6)
 │   ├── src/
 │   │   ├── main.rs     # Main Embassy application
 │   │   ├── display.rs  # ST7789 display driver wrapper
@@ -121,15 +121,15 @@ Once the application is running in your browser:
   - Max Speed (1-10)
   - Max Force (0.01-0.5)
 
-### Embedded (ESP32-C3/C6)
+### Embedded (ESP32-S3 Sense)
 
-For running on Xiao Seed ESP32-C3/C6 with an LED display:
+For running on Xiao ESP32-S3 Sense (default) with an LED display:
 
 ```bash
 # Navigate to the embassy crate
 cd boid-embassy
 
-# Build and flash to ESP32-C3
+# Build and flash to ESP32-S3
 cargo run --release
 ```
 
@@ -241,7 +241,7 @@ make test
 # Or run all workspace tests:
 cargo test --workspace
 
-# Check embassy builds (requires nightly + RISC-V):
+# Check embassy builds (requires ESP toolchain):
 make test-embassy
 ```
 
@@ -268,7 +268,7 @@ make check
 make check-embassy
 ```
 
-**Note:** The `boid-embassy` crate is **excluded from the workspace** entirely since it requires nightly toolchain and RISC-V target. Build it separately: `cd boid-embassy && cargo build`, or use `make test-embassy` to check it builds correctly.
+**Note:** The `boid-embassy` crate is **excluded from the workspace** entirely since it requires ESP Rust toolchain (Xtensa architecture for ESP32-S3). Build it separately: `cd boid-embassy && cargo build`, or use `make test-embassy` to check it builds correctly. For C3/C6 support, see boid-embassy/README.md.
 
 ### Adding New Features
 
