@@ -140,7 +140,16 @@ async function run() {
         console.log('Boid simulation initialized successfully!');
 
         // Initialize MediaPipe (non-blocking, optional feature)
-        initializeHandTracking();
+        // Skip in test/headless environments
+        if (!navigator.webdriver && typeof window !== 'undefined' && window.innerWidth > 0) {
+            setTimeout(() => {
+                initializeHandTracking().catch(err => {
+                    console.warn('Hand tracking failed to initialize:', err);
+                });
+            }, 100);
+        } else {
+            console.log('Skipping hand tracking in test environment');
+        }
     } catch (error) {
         console.error('Failed to initialize:', error);
     }
