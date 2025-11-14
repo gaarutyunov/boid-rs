@@ -58,6 +58,23 @@
             touch-action: none;
         }
 
+        #webcam {
+            display: none;
+        }
+
+        .finger-info {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 8px;
+            padding: 10px 15px;
+            margin-top: 10px;
+            font-size: 0.9rem;
+            color: #333;
+        }
+
+        .finger-info strong {
+            color: #667eea;
+        }
+
         .controls {
             background: white;
             border-radius: 10px;
@@ -166,6 +183,11 @@
 
         <div class="canvas-container">
             <canvas id="canvas"></canvas>
+            <video id="webcam" autoplay playsinline></video>
+            <div class="finger-info" id="finger-info" style="display: none;">
+                <strong>Hand Detected:</strong> <span id="hand-status">No</span> |
+                <strong>Thumb-Index Distance:</strong> <span id="finger-distance">N/A</span>
+            </div>
         </div>
 
         <div class="controls">
@@ -224,7 +246,7 @@
         </div>
 
         <div class="info">
-            Click or tap on the canvas to add boids
+            Allow webcam access to control boids with your hand gestures (thumb and index finger)
         </div>
     </div>
 

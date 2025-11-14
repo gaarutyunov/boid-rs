@@ -22,6 +22,7 @@ features = [
     "Element",
     "DomRect",
     "HtmlCanvasElement",
+    "HtmlVideoElement",
     "CanvasRenderingContext2d",
     "Touch",
     "TouchList",
