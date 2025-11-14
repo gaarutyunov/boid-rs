@@ -311,14 +311,14 @@ impl BoidSimulation {
         // Draw thumb circle
         self.context.begin_path();
         self.context
-            .arc(thumb.x as f64, thumb.y as f64, 8.0, 0.0, 2.0 * 3.14159)?;
+            .arc(thumb.x as f64, thumb.y as f64, 8.0, 0.0, 2.0 * std::f64::consts::PI)?;
         self.context.set_fill_style_str("rgba(255, 0, 0, 0.8)");
         self.context.fill();
 
         // Draw index finger circle
         self.context.begin_path();
         self.context
-            .arc(index.x as f64, index.y as f64, 8.0, 0.0, 2.0 * 3.14159)?;
+            .arc(index.x as f64, index.y as f64, 8.0, 0.0, 2.0 * std::f64::consts::PI)?;
         self.context.set_fill_style_str("rgba(0, 0, 255, 0.8)");
         self.context.fill();
 
