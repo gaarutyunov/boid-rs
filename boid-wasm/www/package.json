@@ -1,0 +1,17 @@
+{
+  "name": "boid-wasm-www",
+  "version": "0.1.0",
+  "description": "WebAssembly frontend for boid simulation",
+  "scripts": {
+    "build": "wasm-pack build --target web --out-dir www/pkg ..",
+    "serve": "python3 -m http.server 8080"
+  },
+  "keywords": [
+    "wasm",
+    "rust",
+    "boids",
+    "simulation"
+  ],
+  "author": "",
+  "license": "MIT"
+}

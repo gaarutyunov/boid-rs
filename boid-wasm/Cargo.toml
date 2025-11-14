@@ -1,0 +1,30 @@
+[package]
+name = "boid-wasm"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+boid-core = { workspace = true }
+wasm-bindgen = { workspace = true }
+js-sys = { workspace = true }
+
+[dependencies.web-sys]
+workspace = true
+features = [
+    "console",
+    "Window",
+    "Document",
+    "Element",
+    "DomRect",
+    "HtmlCanvasElement",
+    "CanvasRenderingContext2d",
+    "Touch",
+    "TouchList",
+    "TouchEvent",
+    "MouseEvent",
+]

@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Boid Simulation - Rust + WASM</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .subtitle {
+            color: rgba(255, 255, 255, 0.9);
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.1rem;
+        }
+
+        .canvas-container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            border-radius: 5px;
+            cursor: crosshair;
+            touch-action: none;
+        }
+
+        .controls {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            padding: 20px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+            border: none;
+        }
+
+        .value-display {
+            display: inline-block;
+            float: right;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .stats {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+            color: white;
+            text-align: center;
+        }
+
+        .stats-item {
+            display: inline-block;
+            margin: 0 15px;
+        }
+
+        .stats-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .stats-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .info {
+            color: rgba(255, 255, 255, 0.9);
+            text-align: center;
+            margin-top: 20px;
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2rem;
+            }
+
+            .stats-item {
+                display: block;
+                margin: 10px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Boid Simulation</h1>
+        <p class="subtitle">Flocking behavior simulation built with Rust and WebAssembly</p>
+
+        <div class="canvas-container">
+            <canvas id="canvas"></canvas>
+        </div>
+
+        <div class="controls">
+            <h2 style="margin-bottom: 15px; color: #333;">Parameters</h2>
+
+            <div class="control-group">
+                <label>
+                    Separation Weight
+                    <span class="value-display" id="separation-value">1.5</span>
+                </label>
+                <input type="range" id="separation" min="0" max="3" step="0.1" value="1.5">
+            </div>
+
+            <div class="control-group">
+                <label>
+                    Alignment Weight
+                    <span class="value-display" id="alignment-value">1.0</span>
+                </label>
+                <input type="range" id="alignment" min="0" max="3" step="0.1" value="1.0">
+            </div>
+
+            <div class="control-group">
+                <label>
+                    Cohesion Weight
+                    <span class="value-display" id="cohesion-value">1.0</span>
+                </label>
+                <input type="range" id="cohesion" min="0" max="3" step="0.1" value="1.0">
+            </div>
+
+            <div class="control-group">
+                <label>
+                    Max Speed
+                    <span class="value-display" id="speed-value">4.0</span>
+                </label>
+                <input type="range" id="speed" min="1" max="10" step="0.5" value="4.0">
+            </div>
+
+            <div class="control-group">
+                <label>
+                    Max Force
+                    <span class="value-display" id="force-value">0.1</span>
+                </label>
+                <input type="range" id="force" min="0.01" max="0.5" step="0.01" value="0.1">
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="stats-item">
+                <div class="stats-label">Boids</div>
+                <div class="stats-value" id="boid-count">0</div>
+            </div>
+            <div class="stats-item">
+                <div class="stats-label">FPS</div>
+                <div class="stats-value" id="fps">60</div>
+            </div>
+        </div>
+
+        <div class="info">
+            Click or tap on the canvas to add boids
+        </div>
+    </div>
+
+    <script type="module" src="./index.js"></script>
+</body>
+</html>

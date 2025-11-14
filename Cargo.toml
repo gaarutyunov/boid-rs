@@ -1,0 +1,19 @@
+[workspace]
+members = [
+    "boid-core",
+    "boid-wasm",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Boid Contributors"]
+license = "MIT"
+
+[workspace.dependencies]
+boid-core = { path = "boid-core" }
+wasm-bindgen = "0.2"
+web-sys = "0.3"
+js-sys = "0.3"
+rand = "0.8"
