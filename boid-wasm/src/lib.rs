@@ -1,7 +1,7 @@
 use boid_core::{Boid, FlockStd, Vector2D};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
+use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, HtmlVideoElement};
 
 #[wasm_bindgen]
 extern "C" {
@@ -20,6 +20,9 @@ pub struct BoidSimulation {
     context: CanvasRenderingContext2d,
     pointer_position: Option<Vector2D>,
     pointer_pressed: bool,
+    thumb_position: Option<Vector2D>,
+    index_position: Option<Vector2D>,
+    video_element: Option<HtmlVideoElement>,
 }
 
 #[wasm_bindgen]
@@ -56,11 +59,17 @@ impl BoidSimulation {
             context,
             pointer_position: None,
             pointer_pressed: false,
+            thumb_position: None,
+            index_position: None,
+            video_element: None,
         })
     }
 
     pub fn update(&mut self) {
-        let target = if self.pointer_pressed {
+        // Priority: 1) Index finger position (if detected), 2) Pointer if pressed, 3) None
+        let target = if self.index_position.is_some() {
+            self.index_position
+        } else if self.pointer_pressed {
             self.pointer_position
         } else {
             None
@@ -72,9 +81,29 @@ impl BoidSimulation {
         let width = self.canvas.width() as f64;
         let height = self.canvas.height() as f64;
 
-        // Clear canvas with dark background
-        self.context.set_fill_style_str("#0a0a0a");
-        self.context.fill_rect(0.0, 0.0, width, height);
+        // Draw video as background if available
+        if let Some(ref video) = self.video_element {
+            // Draw video flipped horizontally (mirror effect)
+            self.context.save();
+            self.context.translate(width, 0.0)?;
+            self.context.scale(-1.0, 1.0)?;
+            self.context
+                .draw_image_with_html_video_element_and_dw_and_dh(video, 0.0, 0.0, width, height)?;
+            self.context.restore();
+
+            // Add semi-transparent overlay for better boid visibility
+            self.context.set_fill_style_str("rgba(10, 10, 10, 0.3)");
+            self.context.fill_rect(0.0, 0.0, width, height);
+        } else {
+            // Clear canvas with dark background if no video
+            self.context.set_fill_style_str("#0a0a0a");
+            self.context.fill_rect(0.0, 0.0, width, height);
+        }
+
+        // Draw finger landmarks if available
+        if let (Some(thumb), Some(index)) = (self.thumb_position, self.index_position) {
+            self.draw_finger_landmarks(thumb, index)?;
+        }
 
         // Draw each boid
         for boid in &self.flock.boids {
@@ -193,6 +222,82 @@ impl BoidSimulation {
                 && boid.position.y >= 0.0
                 && boid.position.y <= height as f32
         })
+    }
+
+    pub fn set_video_element(&mut self, video_id: &str) -> Result<(), JsValue> {
+        let window = web_sys::window().ok_or("no global window")?;
+        let document = window.document().ok_or("no document")?;
+        let video = document
+            .get_element_by_id(video_id)
+            .ok_or("video element not found")?
+            .dyn_into::<HtmlVideoElement>()?;
+        self.video_element = Some(video);
+        console_log!("Video element set");
+        Ok(())
+    }
+
+    pub fn update_finger_positions(
+        &mut self,
+        thumb_x: f64,
+        thumb_y: f64,
+        index_x: f64,
+        index_y: f64,
+    ) {
+        let canvas_width = self.canvas.width() as f32;
+        // Mirror the x-coordinates to match the flipped video
+        self.thumb_position = Some(Vector2D::new(canvas_width - thumb_x as f32, thumb_y as f32));
+        self.index_position = Some(Vector2D::new(canvas_width - index_x as f32, index_y as f32));
+    }
+
+    pub fn clear_finger_positions(&mut self) {
+        self.thumb_position = None;
+        self.index_position = None;
+    }
+
+    pub fn get_finger_distance(&self) -> Option<f64> {
+        if let (Some(thumb), Some(index)) = (self.thumb_position, self.index_position) {
+            let dx = index.x - thumb.x;
+            let dy = index.y - thumb.y;
+            Some(((dx * dx + dy * dy) as f64).sqrt())
+        } else {
+            None
+        }
+    }
+
+    fn draw_finger_landmarks(&self, thumb: Vector2D, index: Vector2D) -> Result<(), JsValue> {
+        // Draw line between thumb and index
+        self.context.begin_path();
+        self.context.move_to(thumb.x as f64, thumb.y as f64);
+        self.context.line_to(index.x as f64, index.y as f64);
+        self.context.set_stroke_style_str("rgba(0, 255, 0, 0.8)");
+        self.context.set_line_width(3.0);
+        self.context.stroke();
+
+        // Draw thumb circle
+        self.context.begin_path();
+        self.context.arc(
+            thumb.x as f64,
+            thumb.y as f64,
+            8.0,
+            0.0,
+            2.0 * std::f64::consts::PI,
+        )?;
+        self.context.set_fill_style_str("rgba(255, 0, 0, 0.8)");
+        self.context.fill();
+
+        // Draw index finger circle
+        self.context.begin_path();
+        self.context.arc(
+            index.x as f64,
+            index.y as f64,
+            8.0,
+            0.0,
+            2.0 * std::f64::consts::PI,
+        )?;
+        self.context.set_fill_style_str("rgba(0, 0, 255, 0.8)");
+        self.context.fill();
+
+        Ok(())
     }
 }
 

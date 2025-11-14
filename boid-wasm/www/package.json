@@ -16,6 +16,9 @@
   ],
   "author": "",
   "license": "MIT",
+  "dependencies": {
+    "@mediapipe/tasks-vision": "^0.10.18"
+  },
   "devDependencies": {
     "@playwright/test": "^1.48.0"
   }
