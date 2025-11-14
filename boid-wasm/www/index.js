@@ -43,7 +43,9 @@ async function enableWebcam() {
 
     try {
         const video = document.getElementById('webcam');
-        const stream = await navigator.mediaDevices.getUserMedia({
+
+        // Add timeout to prevent hanging
+        const streamPromise = navigator.mediaDevices.getUserMedia({
             video: {
                 width: { ideal: 1280 },
                 height: { ideal: 720 },
@@ -51,13 +53,29 @@ async function enableWebcam() {
             }
         });
 
-        video.srcObject = stream;
-        video.addEventListener('loadeddata', () => {
-            webcamRunning = true;
-            console.log('Webcam enabled');
-        });
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Webcam access timeout')), 5000)
+        );
 
-        return true;
+        const stream = await Promise.race([streamPromise, timeoutPromise]);
+
+        video.srcObject = stream;
+
+        return new Promise((resolve) => {
+            video.addEventListener('loadeddata', () => {
+                webcamRunning = true;
+                console.log('Webcam enabled');
+                resolve(true);
+            }, { once: true });
+
+            // Timeout for video loading
+            setTimeout(() => {
+                if (!webcamRunning) {
+                    console.warn('Video failed to load in time');
+                    resolve(false);
+                }
+            }, 3000);
+        });
     } catch (error) {
         console.error('Failed to enable webcam:', error);
         return false;
@@ -114,8 +132,21 @@ async function run() {
         // Update stats initially
         updateStats();
 
-        // Initialize MediaPipe
-        console.log('Initializing MediaPipe...');
+        // Start animation loop
+        animate();
+
+        console.log('Boid simulation initialized successfully!');
+
+        // Initialize MediaPipe (non-blocking, optional feature)
+        initializeHandTracking();
+    } catch (error) {
+        console.error('Failed to initialize:', error);
+    }
+}
+
+async function initializeHandTracking() {
+    try {
+        console.log('Initializing MediaPipe hand tracking...');
         const mediapipeReady = await initializeMediaPipe();
 
         if (mediapipeReady) {
@@ -126,15 +157,15 @@ async function run() {
                 // Set video element in simulation
                 simulation.set_video_element('webcam');
                 console.log('Hand tracking enabled!');
+            } else {
+                console.log('Webcam not available, hand tracking disabled');
             }
+        } else {
+            console.log('MediaPipe not available, hand tracking disabled');
         }
-
-        // Start animation loop
-        animate();
-
-        console.log('Boid simulation initialized successfully!');
     } catch (error) {
-        console.error('Failed to initialize:', error);
+        console.warn('Hand tracking initialization failed:', error);
+        console.log('Continuing without hand tracking...');
     }
 }
 
