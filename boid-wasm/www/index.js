@@ -28,6 +28,9 @@ async function run() {
         // Set up event listeners
         setupEventListeners(canvas);
 
+        // Update stats initially
+        updateStats();
+
         // Start animation loop
         animate();
 
