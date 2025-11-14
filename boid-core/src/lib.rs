@@ -221,7 +221,7 @@ impl Default for BoidConfig {
             alignment_weight: 1.0,
             cohesion_weight: 1.0,
             seek_weight: 8.0,
-            wander_radius: 2.0,
+            wander_radius: 0.1,
         }
     }
 }
