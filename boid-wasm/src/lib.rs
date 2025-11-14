@@ -1,4 +1,4 @@
-use boid_core::{Boid, Flock, Vector2D};
+use boid_core::{Boid, FlockStd, Vector2D};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{CanvasRenderingContext2d, Element, HtmlCanvasElement, MouseEvent, TouchEvent};
@@ -15,7 +15,7 @@ macro_rules! console_log {
 
 #[wasm_bindgen]
 pub struct BoidSimulation {
-    flock: Flock,
+    flock: FlockStd,
     canvas: HtmlCanvasElement,
     context: CanvasRenderingContext2d,
 }
@@ -46,7 +46,7 @@ impl BoidSimulation {
             .ok_or("no 2d context")?
             .dyn_into::<CanvasRenderingContext2d>()?;
 
-        let flock = Flock::new(width, height, boid_count);
+        let flock = FlockStd::new(width as f32, height as f32, boid_count);
 
         Ok(BoidSimulation {
             flock,
@@ -77,10 +77,10 @@ impl BoidSimulation {
 
     fn draw_boid(&self, boid: &Boid) -> Result<(), JsValue> {
         let size = 8.0;
-        let angle = boid.velocity.y.atan2(boid.velocity.x);
+        let angle = (boid.velocity.y as f64).atan2(boid.velocity.x as f64);
 
         self.context.save();
-        self.context.translate(boid.position.x, boid.position.y)?;
+        self.context.translate(boid.position.x as f64, boid.position.y as f64)?;
         self.context.rotate(angle)?;
 
         // Draw a triangle pointing in the direction of movement
@@ -92,7 +92,7 @@ impl BoidSimulation {
 
         // Fill with gradient color based on velocity
         let speed = boid.velocity.magnitude();
-        let normalized_speed = (speed / self.flock.config.max_speed).min(1.0);
+        let normalized_speed = ((speed / self.flock.config.max_speed).min(1.0)) as f64;
         let hue = 180.0 + normalized_speed * 60.0; // Cyan to green
         let color = format!("hsl({}, 70%, 60%)", hue);
 
@@ -111,10 +111,10 @@ impl BoidSimulation {
     }
 
     pub fn add_boid_at(&mut self, x: f64, y: f64) {
-        let position = Vector2D::new(x, y);
+        let position = Vector2D::new(x as f32, y as f32);
         let velocity = Vector2D::new(
-            (js_sys::Math::random() - 0.5) * 4.0,
-            (js_sys::Math::random() - 0.5) * 4.0,
+            ((js_sys::Math::random() - 0.5) * 4.0) as f32,
+            ((js_sys::Math::random() - 0.5) * 4.0) as f32,
         );
         let boid = Boid::new(position, velocity);
         self.flock.add_boid(boid);
@@ -129,7 +129,7 @@ impl BoidSimulation {
     pub fn resize(&mut self, width: f64, height: f64) {
         self.canvas.set_width(width as u32);
         self.canvas.set_height(height as u32);
-        self.flock.resize(width, height);
+        self.flock.resize(width as f32, height as f32);
         console_log!("Resized to {}x{}", width, height);
     }
 
@@ -159,23 +159,23 @@ impl BoidSimulation {
     }
 
     pub fn set_separation_weight(&mut self, weight: f64) {
-        self.flock.config.separation_weight = weight;
+        self.flock.config.separation_weight = weight as f32;
     }
 
     pub fn set_alignment_weight(&mut self, weight: f64) {
-        self.flock.config.alignment_weight = weight;
+        self.flock.config.alignment_weight = weight as f32;
     }
 
     pub fn set_cohesion_weight(&mut self, weight: f64) {
-        self.flock.config.cohesion_weight = weight;
+        self.flock.config.cohesion_weight = weight as f32;
     }
 
     pub fn set_max_speed(&mut self, speed: f64) {
-        self.flock.config.max_speed = speed;
+        self.flock.config.max_speed = speed as f32;
     }
 
     pub fn set_max_force(&mut self, force: f64) {
-        self.flock.config.max_force = force;
+        self.flock.config.max_force = force as f32;
     }
 }
 

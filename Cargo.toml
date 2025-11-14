@@ -2,6 +2,7 @@
 members = [
     "boid-core",
     "boid-wasm",
+    "boid-embassy",
 ]
 resolver = "2"
 
