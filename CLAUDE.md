@@ -70,8 +70,11 @@ This is a multi-platform Rust boid simulation with three main components:
 # Test all Rust code
 cargo test --workspace
 
+# Test WASM bindings (requires wasm-pack and a browser)
+cd boid-wasm && wasm-pack test --headless --chrome
+
 # Build WASM
-cd boid-wasm && wasm-pack build --target web
+cd boid-wasm && wasm-pack build --target web --out-dir www/pkg
 
 # Run e2e tests (requires WASM to be built first)
 cd boid-wasm/www
@@ -108,6 +111,14 @@ cargo clippy --all-targets --all-features -- -D warnings
 6. Apply boundary containment
 
 ## Testing Guidelines
+
+### WASM Unit Tests
+Tests are in `boid-wasm/src/lib.rs` using `wasm-bindgen-test`:
+- Run with `wasm-pack test --headless --chrome` (requires Chrome/Chromium)
+- Tests run in a headless browser environment (not in standard `cargo test`)
+- Test pointer tracking state management, configuration updates, and simulation behavior
+- Create test canvas elements dynamically for each test
+- Use `#[wasm_bindgen_test]` attribute instead of `#[test]`
 
 ### E2E Test Structure
 Tests are in `boid-wasm/www/tests/pointer-tracking.spec.js`:
