@@ -18,6 +18,8 @@ pub struct BoidSimulation {
     flock: FlockStd,
     canvas: HtmlCanvasElement,
     context: CanvasRenderingContext2d,
+    pointer_position: Option<Vector2D>,
+    pointer_pressed: bool,
 }
 
 #[wasm_bindgen]
@@ -52,11 +54,18 @@ impl BoidSimulation {
             flock,
             canvas,
             context,
+            pointer_position: None,
+            pointer_pressed: false,
         })
     }
 
     pub fn update(&mut self) {
-        self.flock.update();
+        let target = if self.pointer_pressed {
+            self.pointer_position
+        } else {
+            None
+        };
+        self.flock.update_with_target(target);
     }
 
     pub fn render(&self) -> Result<(), JsValue> {
@@ -177,6 +186,21 @@ impl BoidSimulation {
 
     pub fn set_max_force(&mut self, force: f64) {
         self.flock.config.max_force = force as f32;
+    }
+
+    pub fn handle_pointer_down(&mut self, x: f64, y: f64) {
+        self.pointer_position = Some(Vector2D::new(x as f32, y as f32));
+        self.pointer_pressed = true;
+        console_log!("Pointer down at ({}, {})", x, y);
+    }
+
+    pub fn handle_pointer_move(&mut self, x: f64, y: f64) {
+        self.pointer_position = Some(Vector2D::new(x as f32, y as f32));
+    }
+
+    pub fn handle_pointer_up(&mut self) {
+        self.pointer_pressed = false;
+        console_log!("Pointer released");
     }
 }
 

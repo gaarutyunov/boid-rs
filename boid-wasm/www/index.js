@@ -19,6 +19,9 @@ async function run() {
         // Create simulation
         simulation = new BoidSimulation('canvas', width, height, 50);
 
+        // Expose simulation for testing
+        window.simulation = simulation;
+
         // Set up controls
         setupControls();
 
@@ -56,20 +59,76 @@ function setupControls() {
 }
 
 function setupEventListeners(canvas) {
-    // Mouse click
-    canvas.addEventListener('click', (e) => {
+    // Helper to get canvas-relative coordinates
+    function getCanvasCoords(e) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        };
+    }
+
+    // Mouse events for pointer tracking
+    canvas.addEventListener('mousedown', (e) => {
         if (simulation) {
-            simulation.handle_mouse_click(e);
-            updateStats();
+            const coords = getCanvasCoords(e);
+            simulation.handle_pointer_down(coords.x, coords.y);
         }
     });
 
-    // Touch events
+    canvas.addEventListener('mousemove', (e) => {
+        if (simulation) {
+            const coords = getCanvasCoords(e);
+            simulation.handle_pointer_move(coords.x, coords.y);
+        }
+    });
+
+    canvas.addEventListener('mouseup', () => {
+        if (simulation) {
+            simulation.handle_pointer_up();
+        }
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+        if (simulation) {
+            simulation.handle_pointer_up();
+        }
+    });
+
+    // Touch events for pointer tracking
     canvas.addEventListener('touchstart', (e) => {
         e.preventDefault();
+        if (simulation && e.touches.length > 0) {
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+            simulation.handle_pointer_down(x, y);
+        }
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        if (simulation && e.touches.length > 0) {
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+            simulation.handle_pointer_move(x, y);
+        }
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', (e) => {
+        e.preventDefault();
         if (simulation) {
-            simulation.handle_touch(e);
-            updateStats();
+            simulation.handle_pointer_up();
+        }
+    }, { passive: false });
+
+    canvas.addEventListener('touchcancel', (e) => {
+        e.preventDefault();
+        if (simulation) {
+            simulation.handle_pointer_up();
         }
     }, { passive: false });
 
