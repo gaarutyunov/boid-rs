@@ -1,9 +1,7 @@
 use boid_core::{Boid, FlockStd, Vector2D};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{
-    CanvasRenderingContext2d, Element, HtmlCanvasElement, HtmlVideoElement, MouseEvent, TouchEvent,
-};
+use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, HtmlVideoElement};
 
 #[wasm_bindgen]
 extern "C" {
