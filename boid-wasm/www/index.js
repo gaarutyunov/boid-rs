@@ -1,5 +1,4 @@
 import init, { BoidSimulation } from './pkg/boid_wasm.js';
-import { HandLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 
 let simulation = null;
 let animationId = null;
@@ -11,6 +10,9 @@ let webcamRunning = false;
 
 async function initializeMediaPipe() {
     try {
+        // Dynamically import MediaPipe to avoid blocking page load
+        const { HandLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision');
+
         const vision = await FilesetResolver.forVisionTasks(
             "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
         );
@@ -146,6 +148,12 @@ async function run() {
 
 async function initializeHandTracking() {
     try {
+        // Check if webcam is available
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            console.log('Media devices API not available, hand tracking disabled');
+            return;
+        }
+
         console.log('Initializing MediaPipe hand tracking...');
         const mediapipeReady = await initializeMediaPipe();
 
