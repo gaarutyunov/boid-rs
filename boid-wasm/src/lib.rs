@@ -1,7 +1,9 @@
 use boid_core::{Boid, FlockStd, Vector2D};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{CanvasRenderingContext2d, Element, HtmlCanvasElement, HtmlVideoElement, MouseEvent, TouchEvent};
+use web_sys::{
+    CanvasRenderingContext2d, Element, HtmlCanvasElement, HtmlVideoElement, MouseEvent, TouchEvent,
+};
 
 #[wasm_bindgen]
 extern "C" {
@@ -87,13 +89,8 @@ impl BoidSimulation {
             self.context.save();
             self.context.translate(width, 0.0)?;
             self.context.scale(-1.0, 1.0)?;
-            self.context.draw_image_with_html_video_element_and_dw_and_dh(
-                video,
-                0.0,
-                0.0,
-                width,
-                height,
-            )?;
+            self.context
+                .draw_image_with_html_video_element_and_dw_and_dh(video, 0.0, 0.0, width, height)?;
             self.context.restore();
 
             // Add semi-transparent overlay for better boid visibility
@@ -283,14 +280,8 @@ impl BoidSimulation {
     ) {
         let canvas_width = self.canvas.width() as f32;
         // Mirror the x-coordinates to match the flipped video
-        self.thumb_position = Some(Vector2D::new(
-            canvas_width - thumb_x as f32,
-            thumb_y as f32,
-        ));
-        self.index_position = Some(Vector2D::new(
-            canvas_width - index_x as f32,
-            index_y as f32,
-        ));
+        self.thumb_position = Some(Vector2D::new(canvas_width - thumb_x as f32, thumb_y as f32));
+        self.index_position = Some(Vector2D::new(canvas_width - index_x as f32, index_y as f32));
     }
 
     pub fn clear_finger_positions(&mut self) {
