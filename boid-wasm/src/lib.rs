@@ -1,7 +1,7 @@
 use boid_core::{Boid, FlockStd, Vector2D};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{CanvasRenderingContext2d, Element, HtmlCanvasElement, MouseEvent, TouchEvent};
+use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
 
 #[wasm_bindgen]
 extern "C" {
@@ -120,48 +120,11 @@ impl BoidSimulation {
         Ok(())
     }
 
-    pub fn add_boid_at(&mut self, x: f64, y: f64) {
-        let position = Vector2D::new(x as f32, y as f32);
-        let velocity = Vector2D::new(
-            ((js_sys::Math::random() - 0.5) * 4.0) as f32,
-            ((js_sys::Math::random() - 0.5) * 4.0) as f32,
-        );
-        let boid = Boid::new(position, velocity);
-        self.flock.add_boid(boid);
-        console_log!(
-            "Added boid at ({}, {}). Total boids: {}",
-            x,
-            y,
-            self.flock.boids.len()
-        );
-    }
-
     pub fn resize(&mut self, width: f64, height: f64) {
         self.canvas.set_width(width as u32);
         self.canvas.set_height(height as u32);
         self.flock.resize(width as f32, height as f32);
         console_log!("Resized to {}x{}", width, height);
-    }
-
-    pub fn handle_mouse_click(&mut self, event: MouseEvent) {
-        let canvas_element: &Element = self.canvas.as_ref();
-        let rect = canvas_element.get_bounding_client_rect();
-        let x = event.client_x() as f64 - rect.left();
-        let y = event.client_y() as f64 - rect.top();
-        self.add_boid_at(x, y);
-    }
-
-    pub fn handle_touch(&mut self, event: TouchEvent) {
-        let touches = event.touches();
-        for i in 0..touches.length() {
-            if let Some(touch) = touches.item(i) {
-                let canvas_element: &Element = self.canvas.as_ref();
-                let rect = canvas_element.get_bounding_client_rect();
-                let x = touch.client_x() as f64 - rect.left();
-                let y = touch.client_y() as f64 - rect.top();
-                self.add_boid_at(x, y);
-            }
-        }
     }
 
     pub fn boid_count(&self) -> usize {
