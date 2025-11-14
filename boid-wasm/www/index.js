@@ -194,6 +194,7 @@ function setupControls() {
         { id: 'speed', valueId: 'speed-value', setter: (v) => simulation.set_max_speed(v) },
         { id: 'force', valueId: 'force-value', setter: (v) => simulation.set_max_force(v) },
         { id: 'seek', valueId: 'seek-value', setter: (v) => simulation.set_seek_weight(v) },
+        { id: 'wander-radius', valueId: 'wander-radius-value', setter: (v) => simulation.set_wander_radius(v) },
     ];
 
     controls.forEach(({ id, valueId, setter }) => {
@@ -205,6 +206,12 @@ function setupControls() {
             valueDisplay.textContent = value.toFixed(2);
             setter(value);
         });
+    });
+
+    // Set up wander enabled checkbox
+    const wanderEnabled = document.getElementById('wander-enabled');
+    wanderEnabled.addEventListener('change', (e) => {
+        simulation.set_wander_enabled(e.target.checked);
     });
 }
 
