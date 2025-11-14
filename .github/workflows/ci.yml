@@ -59,7 +59,7 @@ jobs:
       - name: Build WASM
         run: |
           cd boid-wasm
-          wasm-pack build --target web
+          wasm-pack build --target web --out-dir www/pkg
 
   e2e:
     name: E2E Tests
@@ -79,7 +79,7 @@ jobs:
       - name: Build WASM
         run: |
           cd boid-wasm
-          wasm-pack build --target web
+          wasm-pack build --target web --out-dir www/pkg
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
