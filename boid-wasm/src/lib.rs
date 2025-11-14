@@ -151,6 +151,10 @@ impl BoidSimulation {
         self.flock.config.max_force = force as f32;
     }
 
+    pub fn set_seek_weight(&mut self, weight: f64) {
+        self.flock.config.seek_weight = weight as f32;
+    }
+
     pub fn handle_pointer_down(&mut self, x: f64, y: f64) {
         self.pointer_position = Some(Vector2D::new(x as f32, y as f32));
         self.pointer_pressed = true;
@@ -315,6 +319,9 @@ mod tests {
 
         sim.set_max_force(0.2);
         assert_eq!(sim.flock.config.max_force, 0.2);
+
+        sim.set_seek_weight(10.0);
+        assert_eq!(sim.flock.config.seek_weight, 10.0);
     }
 
     #[wasm_bindgen_test]
