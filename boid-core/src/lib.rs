@@ -203,6 +203,7 @@ pub struct BoidConfig {
     pub separation_weight: f32,
     pub alignment_weight: f32,
     pub cohesion_weight: f32,
+    pub seek_weight: f32,
 }
 
 impl Default for BoidConfig {
@@ -216,6 +217,7 @@ impl Default for BoidConfig {
             separation_weight: 1.5,
             alignment_weight: 1.0,
             cohesion_weight: 1.0,
+            seek_weight: 8.0,
         }
     }
 }
@@ -424,7 +426,7 @@ impl FlockStd {
 
                 // Add seek behavior if target is present
                 let seek_force = if let Some(target_pos) = target {
-                    behavior::seek(boid, target_pos, &self.config) * 2.0
+                    behavior::seek(boid, target_pos, &self.config) * self.config.seek_weight
                 } else {
                     Vector2D::zero()
                 };

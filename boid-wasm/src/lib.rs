@@ -1,7 +1,7 @@
 use boid_core::{Boid, FlockStd, Vector2D};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{CanvasRenderingContext2d, Element, HtmlCanvasElement, MouseEvent, TouchEvent};
+use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement};
 
 #[wasm_bindgen]
 extern "C" {
@@ -120,48 +120,11 @@ impl BoidSimulation {
         Ok(())
     }
 
-    pub fn add_boid_at(&mut self, x: f64, y: f64) {
-        let position = Vector2D::new(x as f32, y as f32);
-        let velocity = Vector2D::new(
-            ((js_sys::Math::random() - 0.5) * 4.0) as f32,
-            ((js_sys::Math::random() - 0.5) * 4.0) as f32,
-        );
-        let boid = Boid::new(position, velocity);
-        self.flock.add_boid(boid);
-        console_log!(
-            "Added boid at ({}, {}). Total boids: {}",
-            x,
-            y,
-            self.flock.boids.len()
-        );
-    }
-
     pub fn resize(&mut self, width: f64, height: f64) {
         self.canvas.set_width(width as u32);
         self.canvas.set_height(height as u32);
         self.flock.resize(width as f32, height as f32);
         console_log!("Resized to {}x{}", width, height);
-    }
-
-    pub fn handle_mouse_click(&mut self, event: MouseEvent) {
-        let canvas_element: &Element = self.canvas.as_ref();
-        let rect = canvas_element.get_bounding_client_rect();
-        let x = event.client_x() as f64 - rect.left();
-        let y = event.client_y() as f64 - rect.top();
-        self.add_boid_at(x, y);
-    }
-
-    pub fn handle_touch(&mut self, event: TouchEvent) {
-        let touches = event.touches();
-        for i in 0..touches.length() {
-            if let Some(touch) = touches.item(i) {
-                let canvas_element: &Element = self.canvas.as_ref();
-                let rect = canvas_element.get_bounding_client_rect();
-                let x = touch.client_x() as f64 - rect.left();
-                let y = touch.client_y() as f64 - rect.top();
-                self.add_boid_at(x, y);
-            }
-        }
     }
 
     pub fn boid_count(&self) -> usize {
@@ -186,6 +149,10 @@ impl BoidSimulation {
 
     pub fn set_max_force(&mut self, force: f64) {
         self.flock.config.max_force = force as f32;
+    }
+
+    pub fn set_seek_weight(&mut self, weight: f64) {
+        self.flock.config.seek_weight = weight as f32;
     }
 
     pub fn handle_pointer_down(&mut self, x: f64, y: f64) {
@@ -231,9 +198,178 @@ impl BoidSimulation {
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn test_basic() {
-        // Basic test to ensure the module compiles
-        assert_eq!(2 + 2, 4);
+    use super::*;
+    use wasm_bindgen_test::*;
+
+    wasm_bindgen_test_configure!(run_in_browser);
+
+    fn create_test_canvas() -> Result<HtmlCanvasElement, JsValue> {
+        let window = web_sys::window().ok_or("no window")?;
+        let document = window.document().ok_or("no document")?;
+        let canvas = document
+            .create_element("canvas")?
+            .dyn_into::<HtmlCanvasElement>()?;
+        canvas.set_id("test-canvas");
+        canvas.set_width(800);
+        canvas.set_height(600);
+        document.body().unwrap().append_child(&canvas)?;
+        Ok(canvas)
+    }
+
+    fn create_test_simulation() -> Result<BoidSimulation, JsValue> {
+        create_test_canvas()?;
+        BoidSimulation::new("test-canvas", 800.0, 600.0, 10)
+    }
+
+    #[wasm_bindgen_test]
+    fn test_simulation_creation() {
+        let simulation = create_test_simulation();
+        assert!(simulation.is_ok());
+        let sim = simulation.unwrap();
+        assert_eq!(sim.boid_count(), 10);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_pointer_down_sets_state() {
+        let mut sim = create_test_simulation().unwrap();
+
+        // Initially, pointer should not be pressed
+        assert!(!sim.pointer_pressed);
+        assert!(sim.pointer_position.is_none());
+
+        // After pointer down, state should be updated
+        sim.handle_pointer_down(100.0, 200.0);
+        assert!(sim.pointer_pressed);
+        assert!(sim.pointer_position.is_some());
+
+        let pos = sim.pointer_position.unwrap();
+        assert_eq!(pos.x, 100.0);
+        assert_eq!(pos.y, 200.0);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_pointer_move_updates_position() {
+        let mut sim = create_test_simulation().unwrap();
+
+        sim.handle_pointer_down(100.0, 100.0);
+        sim.handle_pointer_move(200.0, 300.0);
+
+        assert!(sim.pointer_pressed);
+        let pos = sim.pointer_position.unwrap();
+        assert_eq!(pos.x, 200.0);
+        assert_eq!(pos.y, 300.0);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_pointer_up_clears_pressed_state() {
+        let mut sim = create_test_simulation().unwrap();
+
+        sim.handle_pointer_down(100.0, 100.0);
+        assert!(sim.pointer_pressed);
+
+        sim.handle_pointer_up();
+        assert!(!sim.pointer_pressed);
+        // Position should still be set, just not pressed
+        assert!(sim.pointer_position.is_some());
+    }
+
+    #[wasm_bindgen_test]
+    fn test_update_without_target() {
+        let mut sim = create_test_simulation().unwrap();
+
+        // Get initial positions
+        let initial_count = sim.boid_count();
+
+        // Update without pointer pressed
+        sim.update();
+
+        // Boids should still exist and move
+        assert_eq!(sim.boid_count(), initial_count);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_update_with_target() {
+        let mut sim = create_test_simulation().unwrap();
+
+        // Set a target by pressing pointer
+        sim.handle_pointer_down(400.0, 300.0);
+
+        // Update should apply seek behavior towards target
+        sim.update();
+
+        // Boid count should remain the same
+        assert_eq!(sim.boid_count(), 10);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_configuration_setters() {
+        let mut sim = create_test_simulation().unwrap();
+
+        sim.set_separation_weight(2.5);
+        assert_eq!(sim.flock.config.separation_weight, 2.5);
+
+        sim.set_alignment_weight(1.8);
+        assert_eq!(sim.flock.config.alignment_weight, 1.8);
+
+        sim.set_cohesion_weight(1.2);
+        assert_eq!(sim.flock.config.cohesion_weight, 1.2);
+
+        sim.set_max_speed(6.0);
+        assert_eq!(sim.flock.config.max_speed, 6.0);
+
+        sim.set_max_force(0.2);
+        assert_eq!(sim.flock.config.max_force, 0.2);
+
+        sim.set_seek_weight(10.0);
+        assert_eq!(sim.flock.config.seek_weight, 10.0);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_resize() {
+        let mut sim = create_test_simulation().unwrap();
+
+        sim.resize(1024.0, 768.0);
+
+        assert_eq!(sim.canvas.width(), 1024);
+        assert_eq!(sim.canvas.height(), 768);
+        assert_eq!(sim.flock.width, 1024.0);
+        assert_eq!(sim.flock.height, 768.0);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_get_average_position() {
+        let sim = create_test_simulation().unwrap();
+
+        let avg_pos = sim.get_average_position();
+        assert!(avg_pos.is_some());
+
+        let pos = avg_pos.unwrap();
+        assert_eq!(pos.len(), 2);
+
+        // Average position should be within canvas bounds
+        assert!(pos[0] >= 0.0 && pos[0] <= 800.0);
+        assert!(pos[1] >= 0.0 && pos[1] <= 600.0);
+    }
+
+    #[wasm_bindgen_test]
+    fn test_all_boids_within_bounds() {
+        let mut sim = create_test_simulation().unwrap();
+
+        // Run several updates to let boids move
+        for _ in 0..100 {
+            sim.update();
+        }
+
+        // All boids should still be within bounds
+        assert!(sim.all_boids_within_bounds(800.0, 600.0));
+    }
+
+    #[wasm_bindgen_test]
+    fn test_render() {
+        let sim = create_test_simulation().unwrap();
+
+        // Render should not panic
+        let result = sim.render();
+        assert!(result.is_ok());
     }
 }

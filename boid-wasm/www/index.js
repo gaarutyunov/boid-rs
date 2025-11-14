@@ -47,6 +47,7 @@ function setupControls() {
         { id: 'cohesion', valueId: 'cohesion-value', setter: (v) => simulation.set_cohesion_weight(v) },
         { id: 'speed', valueId: 'speed-value', setter: (v) => simulation.set_max_speed(v) },
         { id: 'force', valueId: 'force-value', setter: (v) => simulation.set_max_force(v) },
+        { id: 'seek', valueId: 'seek-value', setter: (v) => simulation.set_seek_weight(v) },
     ];
 
     controls.forEach(({ id, valueId, setter }) => {
