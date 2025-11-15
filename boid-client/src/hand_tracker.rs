@@ -1,9 +1,10 @@
 use anyhow::Result;
 use boid_shared::{HandLandmarks, Position};
 use opencv::{
-    core::{self, Mat, Point, Scalar, Size, Vector, BORDER_DEFAULT, CV_8UC1},
+    core::{self, Mat, Point, Scalar, Size, BORDER_DEFAULT},
     imgproc,
     prelude::*,
+    types::{VectorOfPoint, VectorOfVectorOfPoint, VectorOfi32, VectorOfVec4i},
 };
 
 pub struct HandTracker {
@@ -72,7 +73,7 @@ impl HandTracker {
         )?;
 
         // Find contours
-        let mut contours = Vector::<Vector<Point>>::new();
+        let mut contours = VectorOfVectorOfPoint::new();
         imgproc::find_contours(
             &mask,
             &mut contours,
@@ -108,11 +109,11 @@ impl HandTracker {
     /// This is a simplified approach using convexity defects
     fn extract_hand_landmarks(
         &self,
-        contour: &Vector<Point>,
+        contour: &VectorOfPoint,
         frame: &Mat,
     ) -> Result<Option<HandLandmarks>> {
         // Find convex hull
-        let mut hull_indices = Vector::<i32>::new();
+        let mut hull_indices = VectorOfi32::new();
         imgproc::convex_hull_idx(contour, &mut hull_indices, false, false)?;
 
         if hull_indices.len() < 3 {
@@ -120,7 +121,7 @@ impl HandTracker {
         }
 
         // Find convexity defects
-        let mut defects = Vector::<core::Vec4i>::new();
+        let mut defects = VectorOfVec4i::new();
         if let Err(_) = imgproc::convexity_defects(contour, &hull_indices, &mut defects) {
             // If we can't find defects, fall back to centroid and topmost point
             return self.simple_landmark_detection(contour, frame);
@@ -164,7 +165,7 @@ impl HandTracker {
     /// Simple fallback: use centroid and topmost point
     fn simple_landmark_detection(
         &self,
-        contour: &Vector<Point>,
+        contour: &VectorOfPoint,
         _frame: &Mat,
     ) -> Result<Option<HandLandmarks>> {
         // Find moments to calculate centroid

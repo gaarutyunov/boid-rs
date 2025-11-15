@@ -2,10 +2,10 @@ use anyhow::{Context, Result};
 use boid_shared::{Position, TargetPositionUpdate};
 use clap::Parser;
 use opencv::{
-    core::{self, Mat, Point, Scalar, Vector},
+    core::{Mat, Point, Scalar},
     highgui, imgproc,
     prelude::*,
-    videoio::{self, VideoCapture, VideoCaptureAPIs},
+    videoio::{VideoCapture, VideoCaptureAPIs},
 };
 use std::time::Instant;
 
