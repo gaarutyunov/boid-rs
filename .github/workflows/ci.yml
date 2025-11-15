@@ -40,7 +40,10 @@ jobs:
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run cargo tests
-        run: cargo test --workspace --exclude boid-client --exclude boid-embassy
+        run: |
+          cargo test -p boid-core
+          cargo test -p boid-shared
+          cargo test -p boid-wasm
 
   client:
     name: Build Client (with OpenCV)
