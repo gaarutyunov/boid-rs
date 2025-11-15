@@ -92,10 +92,7 @@ impl BoidSimulation {
 
             if distance < PINCH_THRESHOLD {
                 // Fingers are pinched - follow the midpoint between fingers
-                let midpoint = Vector2D::new(
-                    (thumb.x + index.x) / 2.0,
-                    (thumb.y + index.y) / 2.0,
-                );
+                let midpoint = Vector2D::new((thumb.x + index.x) / 2.0, (thumb.y + index.y) / 2.0);
                 target = Some(midpoint);
                 console_log!("Pinch detected! Distance: {:.1}px", distance);
             } else {
