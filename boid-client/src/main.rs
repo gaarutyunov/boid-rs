@@ -48,7 +48,7 @@ impl BoidClient {
             let stream_url = format!("{}/stream", server_url);
             log::info!("Opening ESP32 camera stream from {}...", stream_url);
 
-            let mut cam = VideoCapture::from_file(&stream_url, VideoCaptureAPIs::CAP_ANY as i32)?;
+            let cam = VideoCapture::from_file(&stream_url, VideoCaptureAPIs::CAP_ANY as i32)?;
 
             if !cam.is_opened()? {
                 anyhow::bail!(

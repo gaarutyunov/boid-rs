@@ -3,6 +3,7 @@ use boid_shared::{HandLandmarks, Position};
 use opencv::{
     core::{self, Mat, Point, Scalar, Size, Vector, BORDER_DEFAULT},
     imgproc,
+    prelude::MatTraitConst,
 };
 
 pub struct HandTracker {
