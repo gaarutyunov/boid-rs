@@ -65,10 +65,17 @@ async function enableWebcam() {
         video.srcObject = stream;
 
         return new Promise((resolve) => {
-            video.addEventListener('loadeddata', () => {
-                webcamRunning = true;
-                console.log('Webcam enabled');
-                resolve(true);
+            video.addEventListener('loadeddata', async () => {
+                try {
+                    // Explicitly play the video to start the stream
+                    await video.play();
+                    webcamRunning = true;
+                    console.log('Webcam enabled and playing');
+                    resolve(true);
+                } catch (error) {
+                    console.error('Failed to play video:', error);
+                    resolve(false);
+                }
             }, { once: true });
 
             // Timeout for video loading
