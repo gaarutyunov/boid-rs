@@ -10,6 +10,29 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  check:
+    name: Format and Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+
+      - name: Install OpenCV and dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libopencv-dev clang libclang-dev llvm
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
   test:
     name: Run Tests
     runs-on: ubuntu-latest
@@ -20,6 +43,11 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
+
+      - name: Install OpenCV and dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libopencv-dev clang libclang-dev llvm
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -40,31 +68,15 @@ jobs:
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run cargo tests
-        run: cargo test --workspace
+        run: |
+          cargo test -p boid-core
+          cargo test -p boid-shared
+          cargo test -p boid-wasm
+          cargo test -p boid-client
 
   wasm:
-    name: Build WASM
+    name: Build and Test WASM
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-
-      - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
-
-      - name: Build WASM
-        run: |
-          cd boid-wasm
-          wasm-pack build --target web --out-dir www/pkg
-
-  wasm-test:
-    name: WASM Unit Tests
-    runs-on: ubuntu-latest
-    needs: wasm
     steps:
       - uses: actions/checkout@v4
 
@@ -80,7 +92,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: target
-          key: ${{ runner.os }}-cargo-wasm-test-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-wasm-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build WASM
+        run: |
+          cd boid-wasm
+          wasm-pack build --target web --out-dir www/pkg
 
       - name: Install Chrome
         uses: browser-actions/setup-chrome@v1
@@ -95,7 +112,6 @@ jobs:
   e2e:
     name: E2E Tests
     runs-on: ubuntu-latest
-    needs: wasm
     steps:
       - uses: actions/checkout@v4
 

@@ -1,43 +1,43 @@
 use display_interface_spi::SPIInterface;
 use embedded_graphics::{pixelcolor::Rgb565, prelude::*};
-use embedded_hal::digital::OutputPin;
-use esp_hal::{
-    gpio::{Output, Pin},
-    peripherals::SPI2,
-    spi::master::{Spi, SpiDma},
-    Blocking,
+use esp_idf_hal::{
+    delay::FreeRtos,
+    gpio::{Output, PinDriver},
+    spi::SpiDeviceDriver,
 };
 use mipidsi::{models::ST7789, Builder};
 
-pub type Display = mipidsi::Display<
-    SPIInterface<Spi<'static, SPI2, Blocking>, Output<'static>, Output<'static>>,
+pub type Display<'a> = mipidsi::Display<
+    SPIInterface<SpiDeviceDriver<'a, &'a mut esp_idf_hal::spi::SpiDriver<'a>>, PinDriver<'a, esp_idf_hal::gpio::AnyOutputPin, Output>, PinDriver<'a, esp_idf_hal::gpio::AnyOutputPin, Output>>,
     ST7789,
-    Output<'static>,
+    PinDriver<'a, esp_idf_hal::gpio::AnyOutputPin, Output>,
 >;
 
-pub struct DisplayWrapper {
-    display: Display,
+pub struct DisplayWrapper<'a> {
+    display: Display<'a>,
 }
 
-impl DisplayWrapper {
-    pub fn new<CS: Pin, DC: Pin, RST: Pin>(
-        spi: Spi<'static, SPI2, Blocking>,
-        cs: Output<'static>,
-        dc: Output<'static>,
-        mut rst: Output<'static>,
+impl<'a> DisplayWrapper<'a> {
+    pub fn new(
+        spi: SpiDeviceDriver<'a, &'a mut esp_idf_hal::spi::SpiDriver<'a>>,
+        dc: PinDriver<'a, esp_idf_hal::gpio::AnyOutputPin, Output>,
+        mut rst: PinDriver<'a, esp_idf_hal::gpio::AnyOutputPin, Output>,
     ) -> Self {
         // Reset the display
-        rst.set_low();
-        // Small delay would be good here, but we'll skip it for simplicity
-        rst.set_high();
+        rst.set_low().ok();
+        FreeRtos::delay_ms(10);
+        rst.set_high().ok();
+        FreeRtos::delay_ms(10);
 
-        let di = SPIInterface::new(spi, dc, cs);
+        // Note: For SPIInterface::new, we need to pass a dummy CS pin
+        // since SpiDeviceDriver already handles CS
+        let di = SPIInterface::new(spi, dc);
 
         let display = Builder::new(ST7789, di)
             .reset_pin(rst)
             .display_size(240, 240)
             .invert_colors(mipidsi::options::ColorInversion::Inverted)
-            .init(&mut embassy_time::Delay)
+            .init(&mut FreeRtos)
             .unwrap();
 
         Self { display }
@@ -48,7 +48,7 @@ impl DisplayWrapper {
     }
 }
 
-impl DrawTarget for DisplayWrapper {
+impl<'a> DrawTarget for DisplayWrapper<'a> {
     type Color = Rgb565;
     type Error = mipidsi::Error;
 
@@ -60,7 +60,7 @@ impl DrawTarget for DisplayWrapper {
     }
 }
 
-impl OriginDimensions for DisplayWrapper {
+impl<'a> OriginDimensions for DisplayWrapper<'a> {
     fn size(&self) -> Size {
         self.display.size()
     }

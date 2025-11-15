@@ -1,31 +1,38 @@
-#![no_std]
-#![no_main]
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration as StdDuration;
 
 use boid_core::{Boid, BoidConfig, Flock, Vector2D};
-use embassy_executor::Spawner;
-use embassy_time::{Duration, Timer};
+use boid_shared::Position;
 use embedded_graphics::{
     pixelcolor::Rgb565,
     prelude::*,
     primitives::{Circle, PrimitiveStyle, Triangle},
 };
-use esp_backtrace as _;
-use esp_hal::{
-    clock::ClockControl,
-    gpio::Io,
+use esp_idf_hal::{
+    gpio::PinDriver,
     peripherals::Peripherals,
-    prelude::*,
-    spi::{master::Spi, SpiMode},
-    system::SystemControl,
-    timer::timg::TimerGroup,
+    spi::{SpiConfig, SpiDeviceDriver, SpiDriver, SpiDriverConfig},
+};
+use esp_idf_svc::{
+    eventloop::EspSystemEventLoop,
+    hal::prelude::*,
+    nvs::EspDefaultNvsPartition,
+    wifi::{BlockingWifi, ClientConfiguration, Configuration, EspWifi},
 };
 use log::info;
 
+mod camera;
 mod display;
+mod http_server;
 mod rng;
+mod types;
+mod wifi_config;
 
+use camera::CameraWrapper;
 use display::DisplayWrapper;
 use rng::SimpleRng;
+use types::SimulationState;
 
 // Display configuration for common LCD screens
 const DISPLAY_WIDTH: u32 = 240;
@@ -35,53 +42,94 @@ const DISPLAY_HEIGHT: u32 = 240;
 const NUM_BOIDS: usize = 20;
 const BOID_SIZE: u32 = 3;
 
-#[main]
-async fn main(_spawner: Spawner) {
-    info!("Starting boid simulation on ESP32-S3!");
+fn main() -> anyhow::Result<()> {
+    // Initialize ESP-IDF services
+    esp_idf_svc::sys::link_patches();
+    esp_idf_svc::log::EspLogger::initialize_default();
 
-    let peripherals = Peripherals::take();
-    let system = SystemControl::new(peripherals.SYSTEM);
-    let clocks = ClockControl::max(system.clock_control).freeze();
+    info!("Starting boid simulation on ESP32-S3 with camera streaming!");
 
-    let timg0 = TimerGroup::new(peripherals.TIMG0, &clocks);
-    esp_hal_embassy::init(&clocks, timg0.timer0);
+    let peripherals = Peripherals::take()?;
+    let sys_loop = EspSystemEventLoop::take()?;
+    let nvs = EspDefaultNvsPartition::take()?;
 
-    let io = Io::new(peripherals.GPIO, peripherals.IO_MUX);
+    // Initialize WiFi
+    let mut wifi = BlockingWifi::wrap(
+        EspWifi::new(peripherals.modem, sys_loop.clone(), Some(nvs))?,
+        sys_loop,
+    )?;
 
-    // SPI pins for Xiao ESP32-S3 Sense
-    // These are common pins for SPI displays
-    let sclk = io.pins.gpio8; // SCK
-    let mosi = io.pins.gpio9; // MOSI (COPI)
-    let cs = io.pins.gpio7; // CS
-    let dc = io.pins.gpio4; // DC (Data/Command)
-    let rst = io.pins.gpio5; // RST (Reset)
+    connect_wifi(&mut wifi)?;
 
-    info!("Initializing SPI...");
+    let ip_info = wifi.wifi().sta_netif().get_ip_info()?;
+    info!("WiFi connected!");
+    info!("IP Address: {}", ip_info.ip);
+    info!("Connect client to: http://{}", ip_info.ip);
 
-    // Initialize SPI
-    let spi = Spi::new(peripherals.SPI2, 40.MHz(), SpiMode::Mode0, &clocks)
-        .with_sck(sclk)
-        .with_mosi(mosi);
+    // Initialize camera
+    let camera = Arc::new(Mutex::new(CameraWrapper::new(
+        peripherals.pins.gpio10, // XCLK
+        peripherals.pins.gpio40, // SIOD
+        peripherals.pins.gpio39, // SIOC
+        peripherals.pins.gpio48, // Y9
+        peripherals.pins.gpio11, // Y8
+        peripherals.pins.gpio12, // Y7
+        peripherals.pins.gpio14, // Y6
+        peripherals.pins.gpio16, // Y5
+        peripherals.pins.gpio18, // Y4
+        peripherals.pins.gpio17, // Y3
+        peripherals.pins.gpio15, // Y2
+        peripherals.pins.gpio13, // PCLK
+        peripherals.pins.gpio38, // VSYNC
+        peripherals.pins.gpio47, // HREF
+    )?));
 
-    info!("Initializing display...");
+    // Initialize SPI for display
+    let spi = SpiDeviceDriver::new_single(
+        peripherals.spi2,
+        peripherals.pins.gpio8,  // SCLK
+        peripherals.pins.gpio9,  // MOSI
+        Option::<esp_idf_hal::gpio::Gpio0>::None, // MISO (not used)
+        Some(peripherals.pins.gpio7), // CS
+        &SpiDriverConfig::new(),
+        &SpiConfig::new().baudrate(40.MHz().into()),
+    )?;
 
-    // Initialize display
-    let mut display = DisplayWrapper::new(spi, cs.into(), dc.into(), rst.into());
+    let dc = PinDriver::output(peripherals.pins.gpio4)?;
+    let rst = PinDriver::output(peripherals.pins.gpio5)?;
 
+    let mut display = DisplayWrapper::new(spi, dc, rst);
     display.clear(Rgb565::BLACK).ok();
-
     info!("Display initialized!");
 
+    // Initialize shared simulation state
+    let sim_state = Arc::new(Mutex::new(SimulationState {
+        target_position: None,
+        config: BoidConfig {
+            max_speed: 2.0,
+            max_force: 0.05,
+            separation_distance: 15.0,
+            alignment_distance: 25.0,
+            cohesion_distance: 25.0,
+            separation_weight: 1.5,
+            alignment_weight: 1.0,
+            cohesion_weight: 1.0,
+        },
+    }));
+
+    // Spawn HTTP server thread
+    let camera_clone = camera.clone();
+    let sim_state_clone = sim_state.clone();
+    thread::spawn(move || {
+        if let Err(e) = http_server::start_server(camera_clone, sim_state_clone) {
+            log::error!("HTTP server error: {:?}", e);
+        }
+    });
+
     // Initialize the boid simulation
-    let config = BoidConfig {
-        max_speed: 2.0,
-        max_force: 0.05,
-        separation_distance: 15.0,
-        alignment_distance: 25.0,
-        cohesion_distance: 25.0,
-        separation_weight: 1.5,
-        alignment_weight: 1.0,
-        cohesion_weight: 1.0,
+    let config = {
+        let state = sim_state.lock().unwrap();
+        state.config.clone()
     };
 
     let mut flock = Flock::<NUM_BOIDS>::new(DISPLAY_WIDTH as f32, DISPLAY_HEIGHT as f32, config);
@@ -102,20 +150,56 @@ async fn main(_spawner: Spawner) {
 
     // Main simulation loop
     loop {
-        // Clear the display
-        display.clear(Rgb565::BLACK).ok();
+        // Update configuration and target from shared state
+        {
+            let state = sim_state.lock().unwrap();
+            flock.config = state.config.clone();
 
-        // Update boid positions
-        flock.update();
+            // Clear display
+            display.clear(Rgb565::BLACK).ok();
+
+            // Update boid positions with optional target
+            if let Some(target) = state.target_position {
+                flock.update_with_target(Some(target));
+            } else {
+                flock.update();
+            }
+        }
 
         // Draw each boid
         for boid in flock.boids.iter() {
             draw_boid(&mut display, boid);
         }
 
-        // Wait before next frame (targeting ~30 FPS)
-        Timer::after(Duration::from_millis(33)).await;
+        // Target ~30 FPS
+        thread::sleep(StdDuration::from_millis(33));
     }
+}
+
+fn connect_wifi(wifi: &mut BlockingWifi<EspWifi<'static>>) -> anyhow::Result<()> {
+    use wifi_config::{PASSWORD, SSID};
+
+    let wifi_configuration = Configuration::Client(ClientConfiguration {
+        ssid: SSID.try_into().unwrap(),
+        password: PASSWORD.try_into().unwrap(),
+        ..Default::default()
+    });
+
+    wifi.set_configuration(&wifi_configuration)?;
+
+    info!("Starting WiFi...");
+    wifi.start()?;
+    info!("WiFi started");
+
+    info!("Connecting to WiFi...");
+    wifi.connect()?;
+    info!("WiFi connected");
+
+    info!("Waiting for DHCP lease...");
+    wifi.wait_netif_up()?;
+    info!("WiFi netif is up");
+
+    Ok(())
 }
 
 fn draw_boid(display: &mut DisplayWrapper, boid: &Boid) {
