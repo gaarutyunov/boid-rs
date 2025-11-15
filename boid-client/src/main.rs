@@ -62,7 +62,8 @@ impl BoidClient {
             cam
         } else {
             // Use local camera device
-            let camera_id: i32 = video_source.parse()
+            let camera_id: i32 = video_source
+                .parse()
                 .context("Video source must be 'esp32' or a camera device ID (e.g., '0')")?;
 
             log::info!("Opening local camera device {}...", camera_id);
