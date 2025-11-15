@@ -24,7 +24,14 @@ pub struct BoidSimulation {
     index_position: Option<Vector2D>,
     video_element: Option<HtmlVideoElement>,
     wander_enabled: bool,
+    baseline_separation_weight: f32,
+    baseline_max_speed: f32,
 }
+
+// Pinch detection threshold in pixels
+const PINCH_THRESHOLD: f32 = 50.0;
+// Maximum distance for scaling parameters (in pixels)
+const MAX_FINGER_DISTANCE: f32 = 300.0;
 
 #[wasm_bindgen]
 impl BoidSimulation {
@@ -54,6 +61,10 @@ impl BoidSimulation {
 
         let flock = FlockStd::new(width as f32, height as f32, boid_count);
 
+        // Store baseline values for dynamic adjustment
+        let baseline_separation_weight = flock.config.separation_weight;
+        let baseline_max_speed = flock.config.max_speed;
+
         Ok(BoidSimulation {
             flock,
             canvas,
@@ -64,18 +75,65 @@ impl BoidSimulation {
             index_position: None,
             video_element: None,
             wander_enabled: false,
+            baseline_separation_weight,
+            baseline_max_speed,
         })
     }
 
     pub fn update(&mut self) {
-        // Priority: 1) Index finger position (if detected), 2) Pointer if pressed, 3) None
-        let target = if self.index_position.is_some() {
-            self.index_position
-        } else if self.pointer_pressed {
-            self.pointer_position
+        let target;
+
+        // Check if hand tracking is active
+        if let (Some(thumb), Some(index)) = (self.thumb_position, self.index_position) {
+            // Calculate distance between thumb and index finger
+            let dx = index.x - thumb.x;
+            let dy = index.y - thumb.y;
+            let distance = (dx * dx + dy * dy).sqrt();
+
+            if distance < PINCH_THRESHOLD {
+                // Fingers are pinched - follow the midpoint between fingers
+                let midpoint = Vector2D::new(
+                    (thumb.x + index.x) / 2.0,
+                    (thumb.y + index.y) / 2.0,
+                );
+                target = Some(midpoint);
+                console_log!("Pinch detected! Distance: {:.1}px", distance);
+            } else {
+                // Fingers are open - adjust separation and speed based on distance
+                target = None;
+
+                // Normalize distance (0.0 to 1.0) based on MAX_FINGER_DISTANCE
+                let normalized_distance = (distance / MAX_FINGER_DISTANCE).min(1.0);
+
+                // Scale separation weight: larger distance = more separation
+                // Range: baseline to baseline * 3
+                self.flock.config.separation_weight =
+                    self.baseline_separation_weight * (1.0 + normalized_distance * 2.0);
+
+                // Scale max speed: larger distance = faster movement
+                // Range: baseline to baseline * 2.5
+                self.flock.config.max_speed =
+                    self.baseline_max_speed * (1.0 + normalized_distance * 1.5);
+
+                console_log!(
+                    "Open fingers - Distance: {:.1}px, Separation: {:.2}, Speed: {:.2}",
+                    distance,
+                    self.flock.config.separation_weight,
+                    self.flock.config.max_speed
+                );
+            }
         } else {
-            None
-        };
+            // No hand detected - restore baseline values and check for mouse/touch pointer
+            self.flock.config.separation_weight = self.baseline_separation_weight;
+            self.flock.config.max_speed = self.baseline_max_speed;
+
+            target = if self.pointer_pressed {
+                self.pointer_position
+            } else {
+                None
+            };
+        }
+
         self.flock.update_with_target(target);
     }
 
@@ -164,6 +222,7 @@ impl BoidSimulation {
 
     pub fn set_separation_weight(&mut self, weight: f64) {
         self.flock.config.separation_weight = weight as f32;
+        self.baseline_separation_weight = weight as f32;
     }
 
     pub fn set_alignment_weight(&mut self, weight: f64) {
@@ -176,6 +235,7 @@ impl BoidSimulation {
 
     pub fn set_max_speed(&mut self, speed: f64) {
         self.flock.config.max_speed = speed as f32;
+        self.baseline_max_speed = speed as f32;
     }
 
     pub fn set_max_force(&mut self, force: f64) {
@@ -281,6 +341,22 @@ impl BoidSimulation {
         } else {
             None
         }
+    }
+
+    pub fn is_pinched(&self) -> bool {
+        if let Some(distance) = self.get_finger_distance() {
+            distance < PINCH_THRESHOLD as f64
+        } else {
+            false
+        }
+    }
+
+    pub fn get_current_separation_weight(&self) -> f64 {
+        self.flock.config.separation_weight as f64
+    }
+
+    pub fn get_current_max_speed(&self) -> f64 {
+        self.flock.config.max_speed as f64
     }
 
     fn draw_finger_landmarks(&self, thumb: Vector2D, index: Vector2D) -> Result<(), JsValue> {

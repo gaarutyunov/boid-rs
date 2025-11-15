@@ -342,15 +342,28 @@ function animate() {
                     );
 
                     // Update UI
+                    const isPinched = simulation.is_pinched();
+                    const currentSpeed = simulation.get_current_max_speed();
+                    const currentSeparation = simulation.get_current_separation_weight();
+
                     document.getElementById('finger-info').style.display = 'block';
                     document.getElementById('hand-status').textContent = 'Yes';
+                    document.getElementById('gesture-status').textContent =
+                        isPinched ? '👌 Pinched (Following)' : '✋ Open (Dynamic)';
                     document.getElementById('finger-distance').textContent =
                         `${Math.round(fingerData.distance)}px`;
+                    document.getElementById('dynamic-speed').textContent =
+                        currentSpeed.toFixed(2);
+                    document.getElementById('dynamic-separation').textContent =
+                        currentSeparation.toFixed(2);
                 } else {
                     // No hand detected
                     simulation.clear_finger_positions();
                     document.getElementById('hand-status').textContent = 'No';
+                    document.getElementById('gesture-status').textContent = 'N/A';
                     document.getElementById('finger-distance').textContent = 'N/A';
+                    document.getElementById('dynamic-speed').textContent = 'N/A';
+                    document.getElementById('dynamic-separation').textContent = 'N/A';
                 }
             } catch (error) {
                 console.error('Hand detection error:', error);
