@@ -1,128 +1,267 @@
-use boid_shared::{Position, SettingsUpdate, StatusResponse, TargetPositionUpdate};
-use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-use embassy_sync::signal::Signal;
-use heapless::Vec;
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
-pub static TARGET_POSITION: Signal<CriticalSectionRawMutex, Option<Position>> =
-    Signal::new();
+use boid_core::Vector2D;
+use boid_shared::{SettingsUpdate, StatusResponse, TargetPositionUpdate};
+use log::{error, info};
 
-pub static SETTINGS_UPDATE: Signal<CriticalSectionRawMutex, SettingsUpdate> = Signal::new();
+use crate::camera::CameraWrapper;
+use crate::types::SimulationState;
 
-/// Simple HTTP response builder
-pub struct Response {
-    pub status: u16,
-    pub body: heapless::Vec<u8, 512>,
-    pub content_type: &'static str,
+/// Start the HTTP server on port 80
+pub fn start_server(
+    camera: Arc<Mutex<CameraWrapper>>,
+    sim_state: Arc<Mutex<SimulationState>>,
+) -> anyhow::Result<()> {
+    let listener = TcpListener::bind("0.0.0.0:80")?;
+    listener.set_nonblocking(false)?;
+
+    info!("HTTP server listening on port 80");
+
+    for stream in listener.incoming() {
+        match stream {
+            Ok(stream) => {
+                let camera_clone = camera.clone();
+                let sim_state_clone = sim_state.clone();
+
+                // Handle each connection in the same thread (single-threaded server)
+                // For ESP32, we don't want to spawn too many threads
+                if let Err(e) = handle_client(stream, camera_clone, sim_state_clone) {
+                    error!("Error handling client: {:?}", e);
+                }
+            }
+            Err(e) => {
+                error!("Connection error: {:?}", e);
+            }
+        }
+    }
+
+    Ok(())
 }
 
-impl Response {
-    pub fn ok(body: &str) -> Self {
-        let mut vec = heapless::Vec::new();
-        vec.extend_from_slice(body.as_bytes()).ok();
-        Self {
-            status: 200,
-            body: vec,
-            content_type: "application/json",
+fn handle_client(
+    mut stream: TcpStream,
+    camera: Arc<Mutex<CameraWrapper>>,
+    sim_state: Arc<Mutex<SimulationState>>,
+) -> anyhow::Result<()> {
+    stream.set_read_timeout(Some(Duration::from_secs(5)))?;
+    stream.set_write_timeout(Some(Duration::from_secs(5)))?;
+
+    let mut buffer = [0u8; 2048];
+    let bytes_read = stream.read(&mut buffer)?;
+
+    if bytes_read == 0 {
+        return Ok(());
+    }
+
+    // Parse HTTP request
+    if let Some(request) = HttpRequest::parse(&buffer[..bytes_read]) {
+        info!("Request: {} {}", request.method, request.path);
+
+        match (request.method, request.path) {
+            ("GET", "/stream") => {
+                handle_mjpeg_stream(stream, camera)?;
+            }
+            ("POST", "/api/position") => {
+                let response = handle_position_update(request.body, &sim_state);
+                write_response(&mut stream, &response)?;
+            }
+            ("POST", "/api/settings") => {
+                let response = handle_settings_update(request.body, &sim_state);
+                write_response(&mut stream, &response)?;
+            }
+            ("GET", "/api/status") => {
+                let response = handle_status(&sim_state);
+                write_response(&mut stream, &response)?;
+            }
+            _ => {
+                let response = Response::error(404, r#"{"error":"Not found"}"#);
+                write_response(&mut stream, &response)?;
+            }
         }
     }
 
-    pub fn json(body: &str) -> Self {
-        let mut vec = heapless::Vec::new();
-        vec.extend_from_slice(body.as_bytes()).ok();
-        Self {
-            status: 200,
-            body: vec,
-            content_type: "application/json",
-        }
-    }
-
-    pub fn error(status: u16, message: &str) -> Self {
-        let mut vec = heapless::Vec::new();
-        vec.extend_from_slice(message.as_bytes()).ok();
-        Self {
-            status,
-            body: vec,
-            content_type: "application/json",
-        }
-    }
-
-    pub fn mjpeg_stream_start() -> Self {
-        let boundary = b"--BOUNDARY\r\n";
-        let mut vec = heapless::Vec::new();
-        vec.extend_from_slice(boundary).ok();
-        Self {
-            status: 200,
-            body: vec,
-            content_type: "multipart/x-mixed-replace; boundary=BOUNDARY",
-        }
-    }
+    Ok(())
 }
 
-/// Handle POST /api/position endpoint
-pub fn handle_position_update(body: &[u8]) -> Response {
-    // Parse JSON using serde-json-core
-    match serde_json_core::from_slice::<TargetPositionUpdate>(body) {
-        Ok((update, _)) => {
-            // Signal the main loop to update target position
-            TARGET_POSITION.signal(update.position);
+fn handle_mjpeg_stream(
+    mut stream: TcpStream,
+    camera: Arc<Mutex<CameraWrapper>>,
+) -> anyhow::Result<()> {
+    // Send MJPEG header
+    let header = b"HTTP/1.1 200 OK\r\n\
+                    Content-Type: multipart/x-mixed-replace; boundary=BOUNDARY\r\n\
+                    Access-Control-Allow-Origin: *\r\n\
+                    Cache-Control: no-cache\r\n\
+                    \r\n";
+    stream.write_all(header)?;
+
+    // Stream frames continuously
+    loop {
+        let jpeg_data = {
+            let mut cam = camera.lock().unwrap();
+            match cam.capture_jpeg() {
+                Ok(data) => data.to_vec(),
+                Err(e) => {
+                    error!("Camera capture error: {:?}", e);
+                    break;
+                }
+            }
+        };
+
+        // Write frame boundary and headers
+        let frame_header = format!(
+            "--BOUNDARY\r\n\
+             Content-Type: image/jpeg\r\n\
+             Content-Length: {}\r\n\
+             \r\n",
+            jpeg_data.len()
+        );
+
+        if stream.write_all(frame_header.as_bytes()).is_err() {
+            break;
+        }
+
+        // Write JPEG data
+        if stream.write_all(&jpeg_data).is_err() {
+            break;
+        }
+
+        // Write trailing newline
+        if stream.write_all(b"\r\n").is_err() {
+            break;
+        }
+
+        stream.flush().ok();
+
+        // Small delay between frames (~10 FPS for camera stream)
+        std::thread::sleep(Duration::from_millis(100));
+    }
+
+    info!("MJPEG stream ended");
+    Ok(())
+}
+
+fn handle_position_update(
+    body: &[u8],
+    sim_state: &Arc<Mutex<SimulationState>>,
+) -> Response {
+    match serde_json::from_slice::<TargetPositionUpdate>(body) {
+        Ok(update) => {
+            let mut state = sim_state.lock().unwrap();
+            state.target_position = update.position.map(|p| Vector2D::new(p.x, p.y));
             Response::ok(r#"{"status":"ok"}"#)
         }
         Err(_) => Response::error(400, r#"{"error":"Invalid JSON"}"#),
     }
 }
 
-/// Handle POST /api/settings endpoint
-pub fn handle_settings_update(body: &[u8]) -> Response {
-    match serde_json_core::from_slice::<SettingsUpdate>(body) {
-        Ok((update, _)) => {
-            SETTINGS_UPDATE.signal(update);
+fn handle_settings_update(
+    body: &[u8],
+    sim_state: &Arc<Mutex<SimulationState>>,
+) -> Response {
+    match serde_json::from_slice::<SettingsUpdate>(body) {
+        Ok(update) => {
+            let mut state = sim_state.lock().unwrap();
+            state.config.separation_weight = update.settings.separation_weight;
+            state.config.alignment_weight = update.settings.alignment_weight;
+            state.config.cohesion_weight = update.settings.cohesion_weight;
+            state.config.max_speed = update.settings.max_speed;
+            state.config.max_force = update.settings.max_force;
             Response::ok(r#"{"status":"ok"}"#)
         }
         Err(_) => Response::error(400, r#"{"error":"Invalid JSON"}"#),
     }
 }
 
-/// Handle GET /api/status endpoint
-pub fn handle_status(boid_count: usize, fps: u32, target_active: bool) -> Response {
+fn handle_status(sim_state: &Arc<Mutex<SimulationState>>) -> Response {
+    let state = sim_state.lock().unwrap();
     let status = StatusResponse {
-        boid_count,
-        fps,
-        target_active,
+        boid_count: 20, // NUM_BOIDS from main
+        fps: 30,
+        target_active: state.target_position.is_some(),
     };
 
-    // Serialize to JSON
-    let mut buf = [0u8; 128];
-    match serde_json_core::to_slice(&status, &mut buf) {
-        Ok(size) => {
-            let json_str = core::str::from_utf8(&buf[..size]).unwrap_or("{}");
-            Response::json(json_str)
-        }
+    match serde_json::to_string(&status) {
+        Ok(json) => Response::json(&json),
         Err(_) => Response::error(500, r#"{"error":"Serialization failed"}"#),
     }
 }
 
-/// Simple HTTP request parser
-pub struct HttpRequest<'a> {
-    pub method: &'a str,
-    pub path: &'a str,
-    pub body: &'a [u8],
+fn write_response(stream: &mut TcpStream, response: &Response) -> anyhow::Result<()> {
+    let status_text = match response.status {
+        200 => "OK",
+        400 => "Bad Request",
+        404 => "Not Found",
+        500 => "Internal Server Error",
+        _ => "Unknown",
+    };
+
+    let header = format!(
+        "HTTP/1.1 {} {}\r\n\
+         Content-Type: {}\r\n\
+         Content-Length: {}\r\n\
+         Access-Control-Allow-Origin: *\r\n\
+         \r\n",
+        response.status, status_text, response.content_type, response.body.len()
+    );
+
+    stream.write_all(header.as_bytes())?;
+    stream.write_all(&response.body)?;
+    stream.flush()?;
+
+    Ok(())
+}
+
+struct Response {
+    status: u16,
+    body: Vec<u8>,
+    content_type: &'static str,
+}
+
+impl Response {
+    fn ok(body: &str) -> Self {
+        Self {
+            status: 200,
+            body: body.as_bytes().to_vec(),
+            content_type: "application/json",
+        }
+    }
+
+    fn json(body: &str) -> Self {
+        Self {
+            status: 200,
+            body: body.as_bytes().to_vec(),
+            content_type: "application/json",
+        }
+    }
+
+    fn error(status: u16, message: &str) -> Self {
+        Self {
+            status,
+            body: message.as_bytes().to_vec(),
+            content_type: "application/json",
+        }
+    }
+}
+
+struct HttpRequest<'a> {
+    method: &'a str,
+    path: &'a str,
+    body: &'a [u8],
 }
 
 impl<'a> HttpRequest<'a> {
-    pub fn parse(data: &'a [u8]) -> Option<Self> {
-        // Find end of request line
-        let request_str = core::str::from_utf8(data).ok()?;
+    fn parse(data: &'a [u8]) -> Option<Self> {
+        let request_str = std::str::from_utf8(data).ok()?;
         let mut lines = request_str.lines();
         let request_line = lines.next()?;
 
-        // Parse method and path
-        let parts: Vec<&str, 3> = request_line.split(' ').take(3).collect();
-        if parts.len() < 2 {
-            return None;
-        }
-
-        let method = parts[0];
-        let path = parts[1];
+        let mut parts = request_line.split_whitespace();
+        let method = parts.next()?;
+        let path = parts.next()?;
 
         // Find body (after \r\n\r\n)
         let body_start = data
@@ -135,78 +274,4 @@ impl<'a> HttpRequest<'a> {
 
         Some(HttpRequest { method, path, body })
     }
-}
-
-/// Format HTTP response
-pub fn format_response(response: &Response, buf: &mut [u8]) -> usize {
-    let status_text = match response.status {
-        200 => "OK",
-        400 => "Bad Request",
-        404 => "Not Found",
-        500 => "Internal Server Error",
-        _ => "Unknown",
-    };
-
-    let header = format!(
-        "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nAccess-Control-Allow-Origin: *\r\n\r\n",
-        response.status, status_text, response.content_type, response.body.len()
-    );
-
-    let mut written = 0;
-    let header_bytes = header.as_bytes();
-    let header_len = header_bytes.len().min(buf.len());
-    buf[..header_len].copy_from_slice(&header_bytes[..header_len]);
-    written += header_len;
-
-    let body_len = response.body.len().min(buf.len() - written);
-    buf[written..written + body_len].copy_from_slice(&response.body[..body_len]);
-    written += body_len;
-
-    written
-}
-
-/// Format MJPEG stream response header
-pub fn format_mjpeg_header(buf: &mut [u8]) -> usize {
-    let header = b"HTTP/1.1 200 OK\r\nContent-Type: multipart/x-mixed-replace; boundary=BOUNDARY\r\nAccess-Control-Allow-Origin: *\r\nCache-Control: no-cache\r\n\r\n";
-    let len = header.len().min(buf.len());
-    buf[..len].copy_from_slice(&header[..len]);
-    len
-}
-
-/// Format a single MJPEG frame
-pub fn format_mjpeg_frame(jpeg_data: &[u8], buf: &mut [u8]) -> usize {
-    let boundary = b"--BOUNDARY\r\n";
-    let content_type = b"Content-Type: image/jpeg\r\n";
-
-    let mut written = 0;
-
-    // Write boundary
-    let len = boundary.len().min(buf.len() - written);
-    buf[written..written + len].copy_from_slice(&boundary[..len]);
-    written += len;
-
-    // Write content type
-    let len = content_type.len().min(buf.len() - written);
-    buf[written..written + len].copy_from_slice(&content_type[..len]);
-    written += len;
-
-    // Write content length header
-    let content_length = format!("Content-Length: {}\r\n\r\n", jpeg_data.len());
-    let cl_bytes = content_length.as_bytes();
-    let len = cl_bytes.len().min(buf.len() - written);
-    buf[written..written + len].copy_from_slice(&cl_bytes[..len]);
-    written += len;
-
-    // Write JPEG data
-    let len = jpeg_data.len().min(buf.len() - written);
-    buf[written..written + len].copy_from_slice(&jpeg_data[..len]);
-    written += len;
-
-    // Write trailing newline
-    if written + 2 <= buf.len() {
-        buf[written..written + 2].copy_from_slice(b"\r\n");
-        written += 2;
-    }
-
-    written
 }

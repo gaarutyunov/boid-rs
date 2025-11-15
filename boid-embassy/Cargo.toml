@@ -6,35 +6,46 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
-boid-core = { path = "../boid-core", default-features = false }
-boid-shared = { path = "../boid-shared", default-features = false }
-embassy-executor = { version = "0.6", features = ["arch-xtensa", "executor-thread"] }
-embassy-time = { version = "0.3" }
-embassy-sync = { version = "0.6" }
-embassy-net = { version = "0.4", features = ["tcp", "udp", "dhcpv4", "medium-ethernet"] }
-esp-hal = { version = "0.21", features = ["esp32s3"] }
-esp-hal-embassy = { version = "0.4" }
-esp-backtrace = { version = "0.14", features = ["esp32s3", "panic-handler", "exception-handler", "println"] }
-esp-println = { version = "0.12", features = ["esp32s3", "log"] }
-esp-wifi = { version = "0.10", features = ["esp32s3", "embassy-net", "wifi"] }
-log = "0.4"
+boid-core = { path = "../boid-core" }
+boid-shared = { path = "../boid-shared", features = ["std"] }
 
-# Camera support note: esp32cam_rs requires std (via esp-idf-svc)
-# This is incompatible with no_std Embassy. See README_CAMERA.md for options.
-# esp32cam = "0.2"
-# esp-idf-svc = "0.49"
+# ESP-IDF and system dependencies
+esp-idf-svc = { version = "0.49", features = ["binstart"] }
+esp-idf-hal = "0.44"
+esp-idf-sys = "0.35"
+
+# Camera support
+esp32cam = "0.2"
+
+# Display support
 embedded-hal = "1.0"
 embedded-hal-bus = "0.2"
 embedded-graphics = "0.8"
 display-interface = "0.5"
 display-interface-spi = "0.5"
 mipidsi = { version = "0.8", default-features = false }
-picoserve = { version = "0.13", features = [] }
-static_cell = "2.1"
-heapless = "0.8"
-libm = "0.2"
-serde = { version = "1.0", default-features = false, features = ["derive"] }
-serde-json-core = "0.6"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Utilities
+log = "0.4"
+anyhow = "1.0"
+
+[build-dependencies]
+embuild = "0.32"
+toml = "0.8"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+
+[profile.dev]
+debug = true
+opt-level = "z"
 
 [features]
 default = ["esp32s3"]

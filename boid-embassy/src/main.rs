@@ -1,43 +1,38 @@
-#![no_std]
-#![no_main]
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration as StdDuration;
 
 use boid_core::{Boid, BoidConfig, Flock, Vector2D};
 use boid_shared::Position;
-use embassy_executor::Spawner;
-use embassy_net::{Stack, StackResources};
-use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-use embassy_sync::channel::{Channel, Receiver, Sender};
-use embassy_time::{Duration, Timer};
 use embedded_graphics::{
     pixelcolor::Rgb565,
     prelude::*,
     primitives::{Circle, PrimitiveStyle, Triangle},
 };
-use esp_backtrace as _;
-use esp_hal::{
-    clock::ClockControl,
-    gpio::Io,
+use esp_idf_hal::{
+    gpio::PinDriver,
     peripherals::Peripherals,
-    prelude::*,
-    rng::Rng,
-    spi::{master::Spi, SpiMode},
-    system::SystemControl,
-    timer::timg::TimerGroup,
+    spi::{SpiConfig, SpiDeviceDriver, SpiDriver, SpiDriverConfig},
 };
-use esp_wifi::wifi::{
-    ClientConfiguration, Configuration, WifiController, WifiDevice, WifiEvent, WifiStaDevice,
-    WifiState,
+use esp_idf_svc::{
+    eventloop::EspSystemEventLoop,
+    hal::prelude::*,
+    nvs::EspDefaultNvsPartition,
+    wifi::{BlockingWifi, ClientConfiguration, Configuration, EspWifi},
 };
 use log::info;
-use static_cell::StaticCell;
 
+mod camera;
 mod display;
-mod rng;
 mod http_server;
+mod rng;
+mod types;
 mod wifi_config;
 
+use camera::CameraWrapper;
 use display::DisplayWrapper;
 use rng::SimpleRng;
+use types::SimulationState;
 
 // Display configuration for common LCD screens
 const DISPLAY_WIDTH: u32 = 240;
@@ -47,115 +42,94 @@ const DISPLAY_HEIGHT: u32 = 240;
 const NUM_BOIDS: usize = 20;
 const BOID_SIZE: u32 = 3;
 
-// Channels for communication between tasks
-static TARGET_CHANNEL: StaticCell<Channel<CriticalSectionRawMutex, Option<Position>, 1>> =
-    StaticCell::new();
-static SETTINGS_CHANNEL: StaticCell<Channel<CriticalSectionRawMutex, boid_shared::SettingsUpdate, 1>> =
-    StaticCell::new();
+fn main() -> anyhow::Result<()> {
+    // Initialize ESP-IDF services
+    esp_idf_svc::sys::link_patches();
+    esp_idf_svc::log::EspLogger::initialize_default();
 
-#[main]
-async fn main(spawner: Spawner) {
-    info!("Starting boid simulation on ESP32-S3!");
+    info!("Starting boid simulation on ESP32-S3 with camera streaming!");
 
-    let peripherals = Peripherals::take();
-    let system = SystemControl::new(peripherals.SYSTEM);
-    let clocks = ClockControl::max(system.clock_control).freeze();
-
-    let timg0 = TimerGroup::new(peripherals.TIMG0, &clocks);
-    let timg1 = TimerGroup::new(peripherals.TIMG1, &clocks);
-
-    esp_hal_embassy::init(&clocks, timg0.timer0);
-
-    // Initialize RNG for WiFi
-    let rng_peripheral = Rng::new(peripherals.RNG);
+    let peripherals = Peripherals::take()?;
+    let sys_loop = EspSystemEventLoop::take()?;
+    let nvs = EspDefaultNvsPartition::take()?;
 
     // Initialize WiFi
-    let wifi_init = esp_wifi::initialize(
-        esp_wifi::EspWifiInitFor::Wifi,
-        timg1.timer0,
-        rng_peripheral,
-        peripherals.RADIO_CLK,
-        &clocks,
-    )
-    .unwrap();
+    let mut wifi = BlockingWifi::wrap(
+        EspWifi::new(peripherals.modem, sys_loop.clone(), Some(nvs))?,
+        sys_loop,
+    )?;
 
-    let wifi = peripherals.WIFI;
-    let (wifi_interface, controller) =
-        esp_wifi::wifi::new_with_mode(&wifi_init, wifi, WifiStaDevice).unwrap();
+    connect_wifi(&mut wifi)?;
 
-    // Initialize network stack
-    static STACK_RESOURCES: StaticCell<StackResources<3>> = StaticCell::new();
-    static STACK: StaticCell<Stack<WifiDevice<'_, WifiStaDevice>>> = StaticCell::new();
+    let ip_info = wifi.wifi().sta_netif().get_ip_info()?;
+    info!("WiFi connected!");
+    info!("IP Address: {}", ip_info.ip);
+    info!("Connect client to: http://{}", ip_info.ip);
 
-    let stack = &*STACK.init(Stack::new(
-        wifi_interface,
-        embassy_net::Config::dhcpv4(Default::default()),
-        STACK_RESOURCES.init(StackResources::new()),
-        1234u64, // Random seed
-    ));
+    // Initialize camera
+    let camera = Arc::new(Mutex::new(CameraWrapper::new(
+        peripherals.pins.gpio10, // XCLK
+        peripherals.pins.gpio40, // SIOD
+        peripherals.pins.gpio39, // SIOC
+        peripherals.pins.gpio48, // Y9
+        peripherals.pins.gpio11, // Y8
+        peripherals.pins.gpio12, // Y7
+        peripherals.pins.gpio14, // Y6
+        peripherals.pins.gpio16, // Y5
+        peripherals.pins.gpio18, // Y4
+        peripherals.pins.gpio17, // Y3
+        peripherals.pins.gpio15, // Y2
+        peripherals.pins.gpio13, // PCLK
+        peripherals.pins.gpio38, // VSYNC
+        peripherals.pins.gpio47, // HREF
+    )?));
 
-    // Initialize channels
-    let target_channel = TARGET_CHANNEL.init(Channel::new());
-    let settings_channel = SETTINGS_CHANNEL.init(Channel::new());
+    // Initialize SPI for display
+    let spi = SpiDeviceDriver::new_single(
+        peripherals.spi2,
+        peripherals.pins.gpio8,  // SCLK
+        peripherals.pins.gpio9,  // MOSI
+        Option::<esp_idf_hal::gpio::Gpio0>::None, // MISO (not used)
+        Some(peripherals.pins.gpio7), // CS
+        &SpiDriverConfig::new(),
+        &SpiConfig::new().baudrate(40.MHz().into()),
+    )?;
 
-    // Spawn WiFi tasks
-    spawner.spawn(wifi_task(controller)).ok();
-    spawner.spawn(net_task(stack)).ok();
-    spawner.spawn(http_server_task(stack, target_channel.sender(), settings_channel.sender())).ok();
+    let dc = PinDriver::output(peripherals.pins.gpio4)?;
+    let rst = PinDriver::output(peripherals.pins.gpio5)?;
 
-    // Wait for network to be ready
-    info!("Waiting for network...");
-    while !stack.is_link_up() {
-        Timer::after(Duration::from_millis(500)).await;
-    }
-    info!("Network link is up!");
-
-    while !stack.is_config_up() {
-        Timer::after(Duration::from_millis(500)).await;
-    }
-    info!("Network configured!");
-
-    if let Some(config) = stack.config_v4() {
-        info!("IP Address: {}", config.address);
-        info!("Connect client to this IP address");
-    }
-
-    let io = Io::new(peripherals.GPIO, peripherals.IO_MUX);
-
-    // SPI pins for Xiao ESP32-S3 Sense
-    // These are common pins for SPI displays
-    let sclk = io.pins.gpio8; // SCK
-    let mosi = io.pins.gpio9; // MOSI (COPI)
-    let cs = io.pins.gpio7; // CS
-    let dc = io.pins.gpio4; // DC (Data/Command)
-    let rst = io.pins.gpio5; // RST (Reset)
-
-    info!("Initializing SPI...");
-
-    // Initialize SPI
-    let spi = Spi::new(peripherals.SPI2, 40.MHz(), SpiMode::Mode0, &clocks)
-        .with_sck(sclk)
-        .with_mosi(mosi);
-
-    info!("Initializing display...");
-
-    // Initialize display
-    let mut display = DisplayWrapper::new(spi, cs.into(), dc.into(), rst.into());
-
+    let mut display = DisplayWrapper::new(spi, dc, rst);
     display.clear(Rgb565::BLACK).ok();
-
     info!("Display initialized!");
 
+    // Initialize shared simulation state
+    let sim_state = Arc::new(Mutex::new(SimulationState {
+        target_position: None,
+        config: BoidConfig {
+            max_speed: 2.0,
+            max_force: 0.05,
+            separation_distance: 15.0,
+            alignment_distance: 25.0,
+            cohesion_distance: 25.0,
+            separation_weight: 1.5,
+            alignment_weight: 1.0,
+            cohesion_weight: 1.0,
+        },
+    }));
+
+    // Spawn HTTP server thread
+    let camera_clone = camera.clone();
+    let sim_state_clone = sim_state.clone();
+    thread::spawn(move || {
+        if let Err(e) = http_server::start_server(camera_clone, sim_state_clone) {
+            log::error!("HTTP server error: {:?}", e);
+        }
+    });
+
     // Initialize the boid simulation
-    let config = BoidConfig {
-        max_speed: 2.0,
-        max_force: 0.05,
-        separation_distance: 15.0,
-        alignment_distance: 25.0,
-        cohesion_distance: 25.0,
-        separation_weight: 1.5,
-        alignment_weight: 1.0,
-        cohesion_weight: 1.0,
+    let config = {
+        let state = sim_state.lock().unwrap();
+        state.config.clone()
     };
 
     let mut flock = Flock::<NUM_BOIDS>::new(DISPLAY_WIDTH as f32, DISPLAY_HEIGHT as f32, config);
@@ -175,37 +149,21 @@ async fn main(spawner: Spawner) {
     info!("Boids initialized, starting simulation loop...");
 
     // Main simulation loop
-    let target_receiver = target_channel.receiver();
-    let settings_receiver = settings_channel.receiver();
-    let mut target_position: Option<Vector2D> = None;
-
-    info!("Boids initialized, starting simulation loop...");
-
     loop {
-        // Check for target position updates (non-blocking)
-        if let Ok(new_target) = target_receiver.try_receive() {
-            target_position = new_target.map(|p| Vector2D::new(p.x, p.y));
-            info!("Target updated: {:?}", target_position);
-        }
+        // Update configuration and target from shared state
+        {
+            let state = sim_state.lock().unwrap();
+            flock.config = state.config.clone();
 
-        // Check for settings updates (non-blocking)
-        if let Ok(settings) = settings_receiver.try_receive() {
-            flock.config.separation_weight = settings.settings.separation_weight;
-            flock.config.alignment_weight = settings.settings.alignment_weight;
-            flock.config.cohesion_weight = settings.settings.cohesion_weight;
-            flock.config.max_speed = settings.settings.max_speed;
-            flock.config.max_force = settings.settings.max_force;
-            info!("Settings updated");
-        }
+            // Clear display
+            display.clear(Rgb565::BLACK).ok();
 
-        // Clear the display
-        display.clear(Rgb565::BLACK).ok();
-
-        // Update boid positions with optional target
-        if let Some(target) = target_position {
-            flock.update_with_target(Some(target));
-        } else {
-            flock.update();
+            // Update boid positions with optional target
+            if let Some(target) = state.target_position {
+                flock.update_with_target(Some(target));
+            } else {
+                flock.update();
+            }
         }
 
         // Draw each boid
@@ -213,132 +171,35 @@ async fn main(spawner: Spawner) {
             draw_boid(&mut display, boid);
         }
 
-        // Wait before next frame (targeting ~30 FPS)
-        Timer::after(Duration::from_millis(33)).await;
+        // Target ~30 FPS
+        thread::sleep(StdDuration::from_millis(33));
     }
 }
 
-#[embassy_executor::task]
-async fn wifi_task(mut controller: WifiController<'static>) {
+fn connect_wifi(wifi: &mut BlockingWifi<EspWifi<'static>>) -> anyhow::Result<()> {
     use wifi_config::{PASSWORD, SSID};
 
-    info!("Starting WiFi controller...");
-    controller.start().await.unwrap();
-    info!("WiFi started!");
-
-    let client_config = Configuration::Client(ClientConfiguration {
+    let wifi_configuration = Configuration::Client(ClientConfiguration {
         ssid: SSID.try_into().unwrap(),
         password: PASSWORD.try_into().unwrap(),
         ..Default::default()
     });
-    controller.set_configuration(&client_config).unwrap();
+
+    wifi.set_configuration(&wifi_configuration)?;
+
+    info!("Starting WiFi...");
+    wifi.start()?;
+    info!("WiFi started");
 
     info!("Connecting to WiFi...");
-    controller.connect().await.unwrap();
-    info!("WiFi connected!");
+    wifi.connect()?;
+    info!("WiFi connected");
 
-    loop {
-        match controller.wait_for_event().await {
-            WifiEvent::StaConnected => info!("WiFi: Station connected"),
-            WifiEvent::StaDisconnected => {
-                info!("WiFi: Station disconnected, reconnecting...");
-                controller.connect().await.ok();
-            }
-            _ => {}
-        }
-    }
-}
+    info!("Waiting for DHCP lease...");
+    wifi.wait_netif_up()?;
+    info!("WiFi netif is up");
 
-#[embassy_executor::task]
-async fn net_task(stack: &'static Stack<WifiDevice<'static, WifiStaDevice>>) {
-    stack.run().await
-}
-
-#[embassy_executor::task]
-async fn http_server_task(
-    stack: &'static Stack<WifiDevice<'static, WifiStaDevice>>,
-    target_sender: Sender<'static, CriticalSectionRawMutex, Option<Position>, 1>,
-    settings_sender: Sender<'static, CriticalSectionRawMutex, boid_shared::SettingsUpdate, 1>,
-) {
-    use embassy_net::tcp::TcpSocket;
-    use heapless::Vec;
-
-    let mut rx_buffer = [0; 2048];
-    let mut tx_buffer = [0; 2048];
-
-    loop {
-        let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
-        socket.set_timeout(Some(Duration::from_secs(10)));
-
-        info!("HTTP server listening on port 80...");
-        if let Err(e) = socket.accept(80).await {
-            info!("Accept error: {:?}", e);
-            continue;
-        }
-
-        info!("Client connected");
-
-        let mut buf = [0u8; 1024];
-        loop {
-            match socket.read(&mut buf).await {
-                Ok(0) => {
-                    info!("Client disconnected");
-                    break;
-                }
-                Ok(n) => {
-                    // Parse HTTP request
-                    if let Some(req) = http_server::HttpRequest::parse(&buf[..n]) {
-                        info!("Request: {} {}", req.method, req.path);
-
-                        let response = match (req.method, req.path) {
-                            ("POST", "/api/position") => {
-                                let resp = http_server::handle_position_update(req.body);
-                                // Send to channel if successful
-                                if resp.status == 200 {
-                                    if let Ok((update, _)) =
-                                        serde_json_core::from_slice::<boid_shared::TargetPositionUpdate>(
-                                            req.body,
-                                        )
-                                    {
-                                        target_sender.send(update.position).await;
-                                    }
-                                }
-                                resp
-                            }
-                            ("POST", "/api/settings") => {
-                                let resp = http_server::handle_settings_update(req.body);
-                                if resp.status == 200 {
-                                    if let Ok((update, _)) =
-                                        serde_json_core::from_slice::<boid_shared::SettingsUpdate>(
-                                            req.body,
-                                        )
-                                    {
-                                        settings_sender.send(update).await;
-                                    }
-                                }
-                                resp
-                            }
-                            ("GET", "/api/status") => {
-                                http_server::handle_status(NUM_BOIDS, 30, true)
-                            }
-                            _ => http_server::Response::error(404, r#"{"error":"Not found"}"#),
-                        };
-
-                        // Format and send response
-                        let mut response_buf = [0u8; 512];
-                        let size = http_server::format_response(&response, &mut response_buf);
-                        if socket.write_all(&response_buf[..size]).await.is_err() {
-                            break;
-                        }
-                    }
-                }
-                Err(_) => {
-                    info!("Read error");
-                    break;
-                }
-            }
-        }
-    }
+    Ok(())
 }
 
 fn draw_boid(display: &mut DisplayWrapper, boid: &Boid) {
