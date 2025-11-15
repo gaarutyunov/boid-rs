@@ -11,7 +11,7 @@ let webcamRunning = false;
 async function initializeMediaPipe() {
     try {
         // Dynamically import MediaPipe to avoid blocking page load
-        const { HandLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision');
+        const { HandLandmarker, FilesetResolver } = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest');
 
         const vision = await FilesetResolver.forVisionTasks(
             "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
