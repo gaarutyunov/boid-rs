@@ -183,20 +183,38 @@ GitHub Actions workflows in `.github/workflows/`:
 
 ## Client-Server Architecture
 
-The ESP32 and client communicate via HTTP REST API:
+The ESP32 streams camera to the client, which processes frames and sends control commands back:
+
+```
+ESP32-S3 Sense          →  WiFi  →         PC/Raspberry Pi
+──────────────                             ────────────────
+Camera Module                              OpenCV Processing
+     ↓                                          ↓
+MJPEG Stream         →  HTTP GET   →      VideoCapture
+     ↓                                          ↓
+Boid Simulation      ←  HTTP POST   ←      Hand Tracking
+     ↓                                          ↓
+LCD Display                                Position Updates
+```
 
 ### ESP32 Side (Server)
 1. WiFi credentials loaded from environment variables (`WIFI_SSID`, `WIFI_PASSWORD`)
 2. HTTP server listens on port 80
 3. Endpoints:
+   - `GET /stream` - Stream camera as MJPEG (requires camera driver implementation)
    - `POST /api/position` - Update target position
    - `POST /api/settings` - Update boid configuration
    - `GET /api/status` - Get simulation status
-4. Updates sent via embassy channels to main simulation loop
-5. Main loop checks channels non-blockingly each frame
+4. Camera module (OV2640) connected via I2C and parallel interface
+5. Updates sent via embassy channels to main simulation loop
+6. Main loop checks channels non-blockingly each frame
+
+**Note**: Camera streaming requires ESP-IDF camera driver integration. See `boid-embassy/src/camera.rs` for details and pin configuration.
 
 ### Client Side
-1. Opens camera using OpenCV VideoCapture
+1. Opens video stream from ESP32 using OpenCV VideoCapture
+   - Default: `http://ESP32_IP/stream` (MJPEG stream from ESP32 camera)
+   - Fallback: Local camera device ID (e.g., 0, 1, 2...)
 2. Processes each frame for hand detection:
    - Convert to HSV color space
    - Detect skin color regions
@@ -215,6 +233,8 @@ The ESP32 and client communicate via HTTP REST API:
 - E2E tests: `boid-wasm/www/tests/*.spec.js`
 - ESP32 main: `boid-embassy/src/main.rs`
 - HTTP server: `boid-embassy/src/http_server.rs`
+- Camera module (stub): `boid-embassy/src/camera.rs`
+- WiFi config: `boid-embassy/src/wifi_config.rs`
 - Client main: `boid-client/src/main.rs`
 - Hand tracker: `boid-client/src/hand_tracker.rs`
 - CI config: `.github/workflows/ci.yml`

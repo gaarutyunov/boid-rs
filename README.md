@@ -82,27 +82,27 @@ Standalone ESP32 with display showing autonomous boids:
 ESP32 → Boid Simulation → LCD Display
 ```
 
-### 3. Client-Server Mode (OpenCV + ESP32)
-Remote control ESP32 from PC/Raspberry Pi:
+### 3. Client-Server Mode (ESP32 Camera + OpenCV Processing)
+ESP32 streams camera to PC/Raspberry Pi for processing:
 ```
-┌─────────────────────┐         ┌──────────────────┐
-│  PC/Raspberry Pi    │         │   ESP32-S3       │
-│                     │         │                  │
-│  Camera             │         │  LCD Display     │
-│      ↓              │         │       ↑          │
-│  Hand Tracking      │  WiFi   │  Boid Simulation │
-│  (OpenCV)           │────────>│  HTTP Server     │
-│                     │  HTTP   │                  │
-│  Position Updates   │  POST   │  /api/position   │
-│                     │         │  /api/settings   │
-└─────────────────────┘         └──────────────────┘
+┌──────────────────┐         ┌─────────────────────┐
+│   ESP32-S3       │         │  PC/Raspberry Pi    │
+│                  │         │                     │
+│  Camera Module   │  WiFi   │  OpenCV Processing  │
+│      ↓           │────────>│       ↓             │
+│  MJPEG Stream    │  HTTP   │  Hand Tracking      │
+│      ↓           │  GET    │       ↓             │
+│  Boid Simulation │<────────│  Position Updates   │
+│      ↓           │  POST   │                     │
+│  LCD Display     │         │                     │
+└──────────────────┘         └─────────────────────┘
 ```
 
 Benefits of client-server mode:
-- **Offload processing**: Heavy hand tracking runs on powerful PC/RPi
-- **Better cameras**: Use high-quality USB webcams
-- **Remote control**: Control multiple ESP32 devices from one client
-- **Scalability**: One powerful machine can control many ESP32 displays
+- **Offload processing**: Heavy OpenCV hand tracking runs on powerful PC/RPi
+- **No client camera needed**: Uses ESP32's built-in camera module
+- **Remote processing**: Process video from ESP32 anywhere on the network
+- **Scalability**: One powerful machine can process streams from multiple ESP32 devices
 
 ## Boid Algorithm
 
@@ -263,9 +263,9 @@ cargo run --release
 
 See [boid-embassy/README.md](boid-embassy/README.md) for detailed hardware setup and configuration.
 
-### Client-Server Mode (Hand Tracking with ESP32)
+### Client-Server Mode (ESP32 Camera Stream + Hand Tracking)
 
-Control ESP32 boids remotely from your PC or Raspberry Pi using hand gestures.
+ESP32 streams its camera to PC/Raspberry Pi for hand tracking processing.
 
 #### Step 1: Configure and Flash ESP32
 
@@ -281,16 +281,18 @@ WIFI_SSID=YourNetworkName
 WIFI_PASSWORD=YourPassword
 ```
 
-3. Build and flash ESP32:
+3. Build and flash ESP32-S3 Sense:
 ```bash
 cargo +nightly run --release
 ```
+
+**Note**: Camera streaming requires additional implementation. See `boid-embassy/src/camera.rs` for details.
 
 4. Note the IP address displayed on the serial console or LCD (e.g., `192.168.1.100`)
 
 #### Step 2: Run Client on PC/Raspberry Pi
 
-1. Build and run the client:
+1. Build and run the client (streaming from ESP32 camera):
 ```bash
 cd boid-client
 cargo run --release -- --server http://192.168.1.100
@@ -298,21 +300,24 @@ cargo run --release -- --server http://192.168.1.100
 (Replace with your ESP32's IP address)
 
 2. The client will:
-   - Open your webcam
-   - Show a preview window with hand tracking visualization
-   - Detect your hand and finger positions
-   - Send position updates to ESP32 over WiFi
+   - Connect to ESP32 camera stream at `http://192.168.1.100/stream`
+   - Process each frame for hand tracking using OpenCV
+   - Detect hand and finger positions
+   - Send position updates back to ESP32 over WiFi
 
 3. Control the boids:
-   - Show your hand to the camera
+   - Show your hand to the ESP32's camera
    - Move your index finger to set the target position
    - Boids on the ESP32 display will follow your finger!
 
 #### Client Command-Line Options
 
 ```bash
-# Use a different camera (try 0, 1, 2... to find your camera)
-boid-client --server http://192.168.1.100 --camera 1
+# Stream from ESP32 camera (default)
+boid-client --server http://192.168.1.100
+
+# Use local camera for testing (fallback mode)
+boid-client --server http://192.168.1.100 --video-source 0
 
 # Hide the preview window (for headless operation)
 boid-client --server http://192.168.1.100 --show-window false
@@ -323,9 +328,34 @@ boid-client --server http://192.168.1.100 --debug
 # Press 'q' in the preview window to quit
 ```
 
+#### Implementation Status
+
+⚠️ **Camera streaming requires ESP-IDF integration:**
+
+The ESP32-S3 Sense has an OV2640 camera module that needs:
+1. ESP-IDF camera driver initialization
+2. JPEG encoding
+3. MJPEG streaming endpoint
+
+See `boid-embassy/src/camera.rs` for implementation notes and pin configuration.
+
+Current workaround: Use `--video-source 0` to test with a local camera on the client.
+
 ### HTTP API (ESP32)
 
 The ESP32 exposes a REST API for remote control:
+
+#### GET /stream
+Stream camera feed as MJPEG (requires camera implementation):
+```bash
+# View in browser
+open http://192.168.1.100/stream
+
+# Or use with OpenCV (automatic in boid-client)
+```
+
+**Note**: Camera streaming endpoint requires ESP-IDF camera driver integration.
+See `boid-embassy/src/camera.rs` for implementation details.
 
 #### POST /api/position
 Set target position for boids to seek:

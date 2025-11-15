@@ -19,9 +19,9 @@ struct Args {
     #[arg(short, long)]
     server: String,
 
-    /// Camera device ID (default: 0 for primary camera)
-    #[arg(short, long, default_value = "0")]
-    camera: i32,
+    /// Video stream source: 'esp32' to stream from ESP32 camera, or camera device ID (e.g., '0' for local camera)
+    #[arg(short = 'v', long, default_value = "esp32")]
+    video_source: String,
 
     /// Enable debug logging
     #[arg(short, long)]
@@ -42,17 +42,43 @@ struct BoidClient {
 }
 
 impl BoidClient {
-    fn new(server_url: String, camera_id: i32, show_window: bool) -> Result<Self> {
-        log::info!("Initializing camera {}...", camera_id);
-        let mut camera = VideoCapture::new(camera_id, VideoCaptureAPIs::CAP_ANY as i32)?;
+    fn new(server_url: String, video_source: &str, show_window: bool) -> Result<Self> {
+        let camera = if video_source == "esp32" {
+            // Stream from ESP32 camera via MJPEG endpoint
+            let stream_url = format!("{}/stream", server_url);
+            log::info!("Opening ESP32 camera stream from {}...", stream_url);
 
-        if !camera.is_opened()? {
-            anyhow::bail!("Failed to open camera {}", camera_id);
-        }
+            let mut cam = VideoCapture::from_file(&stream_url, VideoCaptureAPIs::CAP_ANY as i32)?;
 
-        // Set camera properties for better performance
-        camera.set(videoio::CAP_PROP_FRAME_WIDTH, 640.0)?;
-        camera.set(videoio::CAP_PROP_FRAME_HEIGHT, 480.0)?;
+            if !cam.is_opened()? {
+                anyhow::bail!(
+                    "Failed to open ESP32 camera stream at {}. \
+                    Make sure the ESP32 is running and camera streaming is enabled.",
+                    stream_url
+                );
+            }
+
+            log::info!("Successfully connected to ESP32 camera stream");
+            cam
+        } else {
+            // Use local camera device
+            let camera_id: i32 = video_source.parse()
+                .context("Video source must be 'esp32' or a camera device ID (e.g., '0')")?;
+
+            log::info!("Opening local camera device {}...", camera_id);
+            let mut cam = VideoCapture::new(camera_id, VideoCaptureAPIs::CAP_ANY as i32)?;
+
+            if !cam.is_opened()? {
+                anyhow::bail!("Failed to open camera device {}", camera_id);
+            }
+
+            // Set camera properties for better performance
+            cam.set(videoio::CAP_PROP_FRAME_WIDTH, 640.0)?;
+            cam.set(videoio::CAP_PROP_FRAME_HEIGHT, 480.0)?;
+
+            log::info!("Successfully opened local camera");
+            cam
+        };
 
         log::info!("Initializing hand tracker...");
         let hand_tracker = HandTracker::new()?;
@@ -241,9 +267,9 @@ fn main() -> Result<()> {
 
     log::info!("Boid client starting...");
     log::info!("Server: {}", args.server);
-    log::info!("Camera: {}", args.camera);
+    log::info!("Video source: {}", args.video_source);
 
-    let mut client = BoidClient::new(args.server, args.camera, args.show_window)
+    let mut client = BoidClient::new(args.server, &args.video_source, args.show_window)
         .context("Failed to initialize client")?;
 
     client.run().context("Client error")?;
