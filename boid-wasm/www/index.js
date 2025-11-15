@@ -17,10 +17,10 @@ async function initializeMediaPipe() {
             "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
         );
 
+        // Create hand landmarker without specifying delegate (auto-select)
         handLandmarker = await HandLandmarker.createFromOptions(vision, {
             baseOptions: {
-                modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-                delegate: "GPU"
+                modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
             },
             runningMode: "VIDEO",
             numHands: 1,
@@ -33,6 +33,7 @@ async function initializeMediaPipe() {
         return true;
     } catch (error) {
         console.error('Failed to initialize MediaPipe:', error);
+        console.error('Error details:', error.message, error.stack);
         return false;
     }
 }
