@@ -123,7 +123,7 @@ impl HandTracker {
 
         // Find convexity defects
         let mut defects = Vector::<core::Vec4i>::new();
-        if let Err(_) = imgproc::convexity_defects(contour, &hull_indices, &mut defects) {
+        if imgproc::convexity_defects(contour, &hull_indices, &mut defects).is_err() {
             // If we can't find defects, fall back to centroid and topmost point
             return self.simple_landmark_detection(contour, frame);
         }
