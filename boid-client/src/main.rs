@@ -5,7 +5,7 @@ use opencv::{
     core::{Mat, Point, Scalar},
     highgui, imgproc,
     prelude::*,
-    videoio::{VideoCapture, VideoCaptureAPIs},
+    videoio::{self, VideoCapture, VideoCaptureAPIs},
 };
 use std::time::Instant;
 

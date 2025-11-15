@@ -1,10 +1,8 @@
 use anyhow::Result;
 use boid_shared::{HandLandmarks, Position};
 use opencv::{
-    core::{self, Mat, Point, Scalar, Size, BORDER_DEFAULT},
+    core::{self, Mat, Point, Scalar, Size, Vector, BORDER_DEFAULT},
     imgproc,
-    prelude::*,
-    types::{VectorOfPoint, VectorOfVectorOfPoint, VectorOfi32, VectorOfVec4i},
 };
 
 pub struct HandTracker {
@@ -41,9 +39,10 @@ impl HandTracker {
             Size::new(5, 5),
             Point::new(-1, -1),
         )?;
+        let mut temp_mask = Mat::default();
         imgproc::morphology_ex(
             &mask,
-            &mut mask,
+            &mut temp_mask,
             imgproc::MORPH_CLOSE,
             &kernel,
             Point::new(-1, -1),
@@ -52,7 +51,7 @@ impl HandTracker {
             core::Scalar::default(),
         )?;
         imgproc::morphology_ex(
-            &mask,
+            &temp_mask,
             &mut mask,
             imgproc::MORPH_OPEN,
             &kernel,
@@ -65,15 +64,16 @@ impl HandTracker {
         // Apply Gaussian blur to smooth the mask
         imgproc::gaussian_blur(
             &mask,
-            &mut mask,
+            &mut temp_mask,
             Size::new(5, 5),
             0.0,
             0.0,
             BORDER_DEFAULT,
         )?;
+        temp_mask.copy_to(&mut mask)?;
 
         // Find contours
-        let mut contours = VectorOfVectorOfPoint::new();
+        let mut contours = Vector::<Vector<Point>>::new();
         imgproc::find_contours(
             &mask,
             &mut contours,
@@ -109,19 +109,19 @@ impl HandTracker {
     /// This is a simplified approach using convexity defects
     fn extract_hand_landmarks(
         &self,
-        contour: &VectorOfPoint,
+        contour: &Vector<Point>,
         frame: &Mat,
     ) -> Result<Option<HandLandmarks>> {
         // Find convex hull
-        let mut hull_indices = VectorOfi32::new();
-        imgproc::convex_hull_idx(contour, &mut hull_indices, false, false)?;
+        let mut hull_indices = Vector::<i32>::new();
+        imgproc::convex_hull(contour, &mut hull_indices, false, false)?;
 
         if hull_indices.len() < 3 {
             return Ok(None);
         }
 
         // Find convexity defects
-        let mut defects = VectorOfVec4i::new();
+        let mut defects = Vector::<core::Vec4i>::new();
         if let Err(_) = imgproc::convexity_defects(contour, &hull_indices, &mut defects) {
             // If we can't find defects, fall back to centroid and topmost point
             return self.simple_landmark_detection(contour, frame);
@@ -165,7 +165,7 @@ impl HandTracker {
     /// Simple fallback: use centroid and topmost point
     fn simple_landmark_detection(
         &self,
-        contour: &VectorOfPoint,
+        contour: &Vector<Point>,
         _frame: &Mat,
     ) -> Result<Option<HandLandmarks>> {
         // Find moments to calculate centroid
@@ -175,8 +175,8 @@ impl HandTracker {
             return Ok(None);
         }
 
-        let cx = (moments.m10 / moments.m00) as f32;
-        let cy = (moments.m01 / moments.m00) as f32;
+        let _cx = (moments.m10 / moments.m00) as f32;
+        let _cy = (moments.m01 / moments.m00) as f32;
 
         // Find topmost point in the contour
         let mut topmost = contour.get(0)?;
