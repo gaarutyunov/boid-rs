@@ -40,7 +40,26 @@ jobs:
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run cargo tests
-        run: cargo test --workspace
+        run: cargo test --workspace --exclude boid-client --exclude boid-embassy
+
+  client:
+    name: Build Client (with OpenCV)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install OpenCV dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libopencv-dev clang libclang-dev
+
+      - name: Build client
+        run: |
+          cd boid-client
+          cargo build --release
 
   wasm:
     name: Build WASM
