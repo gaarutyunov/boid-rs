@@ -209,7 +209,12 @@ LCD Display                                Position Updates
 5. Updates sent via embassy channels to main simulation loop
 6. Main loop checks channels non-blockingly each frame
 
-**Note**: Camera streaming requires ESP-IDF camera driver integration. See `boid-embassy/src/camera.rs` for details and pin configuration.
+**Note**: Camera streaming has a std/no_std compatibility issue:
+- Embassy uses no_std for optimal embedded performance
+- esp32cam_rs (recommended) requires std via esp-idf-svc
+- See `boid-embassy/README_CAMERA.md` for hybrid approach options
+- See `boid-embassy/src/camera.rs` for pin config and reference code
+- Test without ESP32 camera: use client with `--video-source 0`
 
 ### Client Side
 1. Opens video stream from ESP32 using OpenCV VideoCapture
@@ -233,7 +238,8 @@ LCD Display                                Position Updates
 - E2E tests: `boid-wasm/www/tests/*.spec.js`
 - ESP32 main: `boid-embassy/src/main.rs`
 - HTTP server: `boid-embassy/src/http_server.rs`
-- Camera module (stub): `boid-embassy/src/camera.rs`
+- Camera module (reference): `boid-embassy/src/camera.rs`
+- Camera documentation: `boid-embassy/README_CAMERA.md`
 - WiFi config: `boid-embassy/src/wifi_config.rs`
 - Client main: `boid-client/src/main.rs`
 - Hand tracker: `boid-client/src/hand_tracker.rs`

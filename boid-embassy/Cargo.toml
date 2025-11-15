@@ -18,6 +18,11 @@ esp-backtrace = { version = "0.14", features = ["esp32s3", "panic-handler", "exc
 esp-println = { version = "0.12", features = ["esp32s3", "log"] }
 esp-wifi = { version = "0.10", features = ["esp32s3", "embassy-net", "wifi"] }
 log = "0.4"
+
+# Camera support note: esp32cam_rs requires std (via esp-idf-svc)
+# This is incompatible with no_std Embassy. See README_CAMERA.md for options.
+# esp32cam = "0.2"
+# esp-idf-svc = "0.49"
 embedded-hal = "1.0"
 embedded-hal-bus = "0.2"
 embedded-graphics = "0.8"

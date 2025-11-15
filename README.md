@@ -330,16 +330,27 @@ boid-client --server http://192.168.1.100 --debug
 
 #### Implementation Status
 
-⚠️ **Camera streaming requires ESP-IDF integration:**
+⚠️ **Camera Streaming Compatibility:**
 
-The ESP32-S3 Sense has an OV2640 camera module that needs:
-1. ESP-IDF camera driver initialization
-2. JPEG encoding
-3. MJPEG streaming endpoint
+The Embassy boid simulation uses `no_std` for optimal embedded performance, but the recommended ESP32 camera library (`esp32cam_rs`) requires `std` via `esp-idf-svc`.
 
-See `boid-embassy/src/camera.rs` for implementation notes and pin configuration.
+**Current Options:**
+1. **Hybrid Approach**: Run separate std-based camera server alongside no_std boid simulation (see `boid-embassy/README_CAMERA.md`)
+2. **Manual FFI**: Create custom no_std bindings to ESP-IDF camera driver (complex)
+3. **Client Fallback**: Test full pipeline using client's local camera with `--video-source 0`
 
-Current workaround: Use `--video-source 0` to test with a local camera on the client.
+**Pin Configuration and Reference Implementation:**
+- See `boid-embassy/src/camera.rs` for XIAO ESP32S3 Sense pin mapping
+- Reference `esp32cam_rs` implementation provided in comments
+- Link to working webserver example: https://github.com/Kezii/esp32cam_rs
+
+**Quick Test Without ESP32 Camera:**
+```bash
+cd boid-client
+cargo run --release -- --server http://ESP32_IP --video-source 0
+```
+
+This tests the complete hand tracking → ESP32 control pipeline using your computer's webcam.
 
 ### HTTP API (ESP32)
 
