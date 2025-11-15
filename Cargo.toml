@@ -2,6 +2,8 @@
 members = [
     "boid-core",
     "boid-wasm",
+    "boid-shared",
+    "boid-client",
 ]
 # Note: boid-embassy is intentionally excluded from the workspace
 # It requires nightly toolchain and RISC-V target, making it incompatible

@@ -1,15 +1,21 @@
-# Boid Simulation - Rust + WebAssembly + Embedded
+# Boid Simulation - Rust + WebAssembly + Embedded + Hand Tracking
 
 A flocking behavior simulation implementing Craig Reynolds' Boid algorithm, built with Rust for multiple platforms:
-- WebAssembly for web browsers
-- Embedded systems (ESP32-S3 Sense, C3, C6) with Embassy framework
+- WebAssembly for web browsers with MediaPipe hand tracking
+- Embedded systems (ESP32-S3 Sense, C3, C6) with Embassy framework and WiFi HTTP server
+- Desktop/Raspberry Pi client with OpenCV hand tracking for controlling remote ESP32 devices
 
 ## Features
 
 - **Pure Rust Implementation**: Core boid algorithm written in Rust with comprehensive tests
 - **no_std Support**: Core algorithm works on embedded systems without standard library
 - **WebAssembly Frontend**: Interactive canvas-based visualization running in the browser
+- **Hand Gesture Control**: Control boids with hand pinch gestures using webcam
+  - **WASM**: MediaPipe hand tracking in the browser
+  - **Client**: OpenCV-based hand tracking for desktop/Raspberry Pi
 - **Embedded Support**: Runs on ESP32-S3 Sense, C3, and C6 microcontrollers with LED displays
+- **WiFi HTTP Server**: ESP32 hosts HTTP API for remote control
+- **Client-Server Architecture**: Control ESP32 boids from PC/Raspberry Pi via WiFi
 - **Embassy Framework**: Async runtime for efficient embedded execution
 - **Touch Support**: Works on both desktop (mouse) and mobile (touch) devices
 - **Real-time Controls**: Adjust simulation parameters on the fly
@@ -25,29 +31,78 @@ boid-rs/
 │   ├── src/
 │   │   └── lib.rs      # Vector math, Boid, and Flock logic
 │   └── Cargo.toml
-├── boid-wasm/          # WebAssembly frontend
+├── boid-shared/        # Shared types for client-server communication
+│   ├── src/
+│   │   └── lib.rs      # Position, HandLandmarks, API types
+│   └── Cargo.toml
+├── boid-wasm/          # WebAssembly frontend with MediaPipe hand tracking
 │   ├── src/
 │   │   └── lib.rs      # WASM bindings and canvas rendering
 │   ├── www/            # Web assets
 │   │   ├── index.html
-│   │   ├── index.js
+│   │   ├── index.js    # MediaPipe integration
 │   │   └── package.json
 │   └── Cargo.toml
-├── boid-embassy/       # ESP32-S3 Sense embedded implementation (also supports C3/C6)
+├── boid-embassy/       # ESP32-S3 embedded impl with WiFi HTTP server
 │   ├── src/
 │   │   ├── main.rs     # Main Embassy application
+│   │   ├── http_server.rs  # HTTP API server
+│   │   ├── wifi_config.rs  # WiFi credentials
 │   │   ├── display.rs  # ST7789 display driver wrapper
 │   │   └── rng.rs      # Pseudo-random number generator
 │   ├── .cargo/
 │   │   └── config.toml # Build configuration
+│   ├── .env.example    # WiFi configuration template
+│   └── Cargo.toml
+├── boid-client/        # Desktop/Raspberry Pi client with OpenCV
+│   ├── src/
+│   │   ├── main.rs     # Client application and CLI
+│   │   └── hand_tracker.rs  # OpenCV hand tracking
 │   └── Cargo.toml
 ├── .github/
 │   └── workflows/      # CI/CD workflows
 │       ├── test.yml    # Testing workflow
 │       └── deploy.yml  # GitHub Pages deployment
 ├── Cargo.toml          # Workspace configuration
+├── CLAUDE.md           # Development guidelines
 └── README.md
 ```
+
+## Architecture Modes
+
+### 1. Web Mode (WASM + MediaPipe)
+Runs entirely in the browser with hand gesture control:
+```
+Browser → MediaPipe Hand Tracking → WASM Boid Simulation → Canvas Display
+```
+
+### 2. Embedded Mode (ESP32 Only)
+Standalone ESP32 with display showing autonomous boids:
+```
+ESP32 → Boid Simulation → LCD Display
+```
+
+### 3. Client-Server Mode (OpenCV + ESP32)
+Remote control ESP32 from PC/Raspberry Pi:
+```
+┌─────────────────────┐         ┌──────────────────┐
+│  PC/Raspberry Pi    │         │   ESP32-S3       │
+│                     │         │                  │
+│  Camera             │         │  LCD Display     │
+│      ↓              │         │       ↑          │
+│  Hand Tracking      │  WiFi   │  Boid Simulation │
+│  (OpenCV)           │────────>│  HTTP Server     │
+│                     │  HTTP   │                  │
+│  Position Updates   │  POST   │  /api/position   │
+│                     │         │  /api/settings   │
+└─────────────────────┘         └──────────────────┘
+```
+
+Benefits of client-server mode:
+- **Offload processing**: Heavy hand tracking runs on powerful PC/RPi
+- **Better cameras**: Use high-quality USB webcams
+- **Remote control**: Control multiple ESP32 devices from one client
+- **Scalability**: One powerful machine can control many ESP32 displays
 
 ## Boid Algorithm
 
@@ -61,10 +116,50 @@ Each rule can be individually weighted to create different flocking behaviors.
 
 ## Prerequisites
 
+### Common Requirements
 - [Rust](https://www.rust-lang.org/tools/install) (1.70 or later)
-- [wasm-pack](https://rustwasm.github.io/wasm-pack/installer/) (for building WASM)
+
+### For Web Version (WASM)
+- [wasm-pack](https://rustwasm.github.io/wasm-pack/installer/)
 - A modern web browser with WebAssembly support
 - Python 3 (for local development server)
+- Webcam (for hand tracking)
+
+### For ESP32 Embedded Version
+- Rust nightly toolchain
+- ESP32-S3 Sense or compatible board
+- SPI LCD display (ST7789 or compatible, 240x240)
+- [espflash](https://github.com/esp-rs/espflash) for flashing
+
+### For Client-Server Mode
+**ESP32 Requirements:**
+- All embedded requirements above
+- WiFi network
+
+**Client Requirements (PC/Raspberry Pi):**
+- OpenCV development libraries
+- Clang/LLVM (for OpenCV Rust bindings)
+- Webcam or USB camera
+- Network connectivity to ESP32
+
+#### Installing OpenCV
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get update
+sudo apt-get install libopencv-dev clang libclang-dev
+```
+
+**macOS:**
+```bash
+brew install opencv
+```
+
+**Raspberry Pi:**
+```bash
+sudo apt-get update
+sudo apt-get install libopencv-dev clang libclang-dev
+```
 
 ## Building and Running
 
@@ -167,6 +262,116 @@ cargo run --release
 ```
 
 See [boid-embassy/README.md](boid-embassy/README.md) for detailed hardware setup and configuration.
+
+### Client-Server Mode (Hand Tracking with ESP32)
+
+Control ESP32 boids remotely from your PC or Raspberry Pi using hand gestures.
+
+#### Step 1: Configure and Flash ESP32
+
+1. Create WiFi configuration file:
+```bash
+cd boid-embassy
+cp .env.example .env
+```
+
+2. Edit `.env` with your WiFi credentials:
+```bash
+WIFI_SSID=YourNetworkName
+WIFI_PASSWORD=YourPassword
+```
+
+3. Build and flash ESP32:
+```bash
+cargo +nightly run --release
+```
+
+4. Note the IP address displayed on the serial console or LCD (e.g., `192.168.1.100`)
+
+#### Step 2: Run Client on PC/Raspberry Pi
+
+1. Build and run the client:
+```bash
+cd boid-client
+cargo run --release -- --server http://192.168.1.100
+```
+(Replace with your ESP32's IP address)
+
+2. The client will:
+   - Open your webcam
+   - Show a preview window with hand tracking visualization
+   - Detect your hand and finger positions
+   - Send position updates to ESP32 over WiFi
+
+3. Control the boids:
+   - Show your hand to the camera
+   - Move your index finger to set the target position
+   - Boids on the ESP32 display will follow your finger!
+
+#### Client Command-Line Options
+
+```bash
+# Use a different camera (try 0, 1, 2... to find your camera)
+boid-client --server http://192.168.1.100 --camera 1
+
+# Hide the preview window (for headless operation)
+boid-client --server http://192.168.1.100 --show-window false
+
+# Enable debug logging
+boid-client --server http://192.168.1.100 --debug
+
+# Press 'q' in the preview window to quit
+```
+
+### HTTP API (ESP32)
+
+The ESP32 exposes a REST API for remote control:
+
+#### POST /api/position
+Set target position for boids to seek:
+```bash
+curl -X POST http://192.168.1.100/api/position \
+  -H "Content-Type: application/json" \
+  -d '{"position":{"x":120.0,"y":120.0}}'
+```
+
+Clear target (free flying):
+```bash
+curl -X POST http://192.168.1.100/api/position \
+  -H "Content-Type: application/json" \
+  -d '{"position":null}'
+```
+
+#### POST /api/settings
+Update simulation parameters:
+```bash
+curl -X POST http://192.168.1.100/api/settings \
+  -H "Content-Type: application/json" \
+  -d '{
+    "settings": {
+      "separation_weight": 1.5,
+      "alignment_weight": 1.0,
+      "cohesion_weight": 1.0,
+      "max_speed": 2.0,
+      "max_force": 0.05,
+      "seek_weight": 8.0
+    }
+  }'
+```
+
+#### GET /api/status
+Get current simulation status:
+```bash
+curl http://192.168.1.100/api/status
+```
+Response:
+```json
+{
+  "boid_count": 20,
+  "fps": 30,
+  "target_active": true
+}
+```
 
 ### Using as a Library
 

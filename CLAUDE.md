@@ -4,10 +4,12 @@ This document provides guidance for AI agents (like Claude) working on this proj
 
 ## Project Overview
 
-This is a multi-platform Rust boid simulation with three main components:
+This is a multi-platform Rust boid simulation with five main components:
 - **boid-core**: Pure Rust no_std-compatible algorithm
-- **boid-wasm**: WebAssembly frontend for browsers
-- **boid-embassy**: Embedded ESP32 implementation with Embassy framework
+- **boid-shared**: Shared types for client-server communication (no_std compatible)
+- **boid-wasm**: WebAssembly frontend for browsers with MediaPipe hand tracking
+- **boid-embassy**: Embedded ESP32 implementation with Embassy framework, WiFi, and HTTP server
+- **boid-client**: Desktop/Raspberry Pi client with OpenCV hand tracking
 
 ## Architecture
 
@@ -27,9 +29,29 @@ This is a multi-platform Rust boid simulation with three main components:
 
 ### Web Frontend (`boid-wasm/www/`)
 - `index.html`: Main HTML with canvas and controls
-- `index.js`: JavaScript glue code, animation loop, event handlers
+- `index.js`: JavaScript glue code, animation loop, event handlers, MediaPipe integration
 - `package.json`: npm scripts for building and testing
 - `tests/`: Playwright e2e tests
+
+### Shared Types (`boid-shared/src/lib.rs`)
+- `Position`: 2D position with distance calculations
+- `HandLandmarks`: Thumb and index finger positions with pinch distance
+- `TargetPositionUpdate`: API type for updating boid target
+- `BoidSettings`: Configuration parameters
+- `SettingsUpdate`: API type for updating settings
+- `StatusResponse`: Server status information
+- All types use serde for JSON serialization (optional std feature)
+
+### Embassy/ESP32 (`boid-embassy/src/`)
+- `main.rs`: Main Embassy application with WiFi and HTTP server
+- `http_server.rs`: HTTP API handlers for position and settings endpoints
+- `wifi_config.rs`: WiFi credentials (loaded from environment variables)
+- `display.rs`: ST7789 display driver wrapper
+- `rng.rs`: Pseudo-random number generator
+
+### Client (`boid-client/src/`)
+- `main.rs`: CLI application, camera capture, HTTP client, visualization
+- `hand_tracker.rs`: OpenCV-based hand detection using skin color and contour analysis
 
 ## Development Workflow
 
@@ -159,13 +181,42 @@ GitHub Actions workflows in `.github/workflows/`:
 4. **no_std compatibility**: Core algorithm must work without std (no `Vec`, use `heapless::Vec`)
 5. **wasm-opt disabled**: The project disables wasm-opt for compatibility (see `Cargo.toml`)
 
+## Client-Server Architecture
+
+The ESP32 and client communicate via HTTP REST API:
+
+### ESP32 Side (Server)
+1. WiFi credentials loaded from environment variables (`WIFI_SSID`, `WIFI_PASSWORD`)
+2. HTTP server listens on port 80
+3. Endpoints:
+   - `POST /api/position` - Update target position
+   - `POST /api/settings` - Update boid configuration
+   - `GET /api/status` - Get simulation status
+4. Updates sent via embassy channels to main simulation loop
+5. Main loop checks channels non-blockingly each frame
+
+### Client Side
+1. Opens camera using OpenCV VideoCapture
+2. Processes each frame for hand detection:
+   - Convert to HSV color space
+   - Detect skin color regions
+   - Find contours
+   - Extract finger tip positions from largest contour
+3. Sends HTTP POST requests when position changes significantly (>5px)
+4. Displays visualization window with hand tracking overlay
+
 ## File Locations
 
 - Core algorithm: `boid-core/src/lib.rs`
+- Shared types: `boid-shared/src/lib.rs`
 - WASM bindings: `boid-wasm/src/lib.rs`
 - Web UI HTML: `boid-wasm/www/index.html`
 - Web UI JS: `boid-wasm/www/index.js`
 - E2E tests: `boid-wasm/www/tests/*.spec.js`
+- ESP32 main: `boid-embassy/src/main.rs`
+- HTTP server: `boid-embassy/src/http_server.rs`
+- Client main: `boid-client/src/main.rs`
+- Hand tracker: `boid-client/src/hand_tracker.rs`
 - CI config: `.github/workflows/ci.yml`
 - Playwright config: `boid-wasm/www/playwright.config.js`
 
@@ -175,7 +226,7 @@ GitHub Actions workflows in `.github/workflows/`:
 # Quick check before committing
 cargo test --workspace && cargo fmt --all -- --check && cargo clippy --all-targets -- -D warnings
 
-# Build and test everything
+# Build and test WASM
 cd boid-wasm
 wasm-pack build --target web
 cd www
@@ -183,6 +234,20 @@ npm run test:e2e
 
 # View e2e test results
 npm run test:e2e:ui  # Interactive mode
+
+# Test ESP32 build (requires nightly + ESP toolchain)
+cd boid-embassy
+cargo +nightly check
+
+# Build client (requires OpenCV)
+cd boid-client
+cargo build --release
+
+# Run client
+cargo run --release -- --server http://192.168.1.100
+
+# Test shared crate
+cargo test -p boid-shared
 ```
 
 ## When in Doubt
