@@ -4,4 +4,4 @@
 
 [wifi]
 ssid = "YourNetworkName"
-password = "YourPassword"
+psk = "YourPassword"

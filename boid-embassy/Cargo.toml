@@ -35,7 +35,7 @@ anyhow = "1.0"
 
 [build-dependencies]
 embuild = "0.32"
-toml = "0.8"
+toml-cfg = "0.2"
 
 [profile.release]
 opt-level = "z"
