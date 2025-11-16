@@ -422,6 +422,7 @@ mod tests {
     #[test]
     fn test_hand_tracker_with_real_pinch_images() -> Result<()> {
         use boid_client::hand_tracker::HandTracker;
+        use std::collections::HashMap;
 
         println!("\n========================================");
         println!("TEST: Hand Tracker with Real Images");
@@ -437,6 +438,8 @@ mod tests {
             ("IMG_8527.jpeg", "wider/medium"),
             ("IMG_8528.jpeg", "closed pinch"),
         ];
+
+        let mut distances: HashMap<&str, f32> = HashMap::new();
 
         for (filename, description) in test_images.iter() {
             println!("\n[TEST] Processing {} ({})...", filename, description);
@@ -456,8 +459,18 @@ mod tests {
                 }
             );
 
+            // Assert that hand is detected in all real images
+            assert!(
+                result.is_some(),
+                "Hand should be detected in real image {} ({})",
+                filename,
+                description
+            );
+
             if let Some(landmarks) = result {
                 let distance = landmarks.pinch_distance();
+                distances.insert(filename, distance);
+
                 println!(
                     "[TRACKER] {} - Pinch distance: {:.2}px",
                     description, distance
@@ -471,46 +484,73 @@ mod tests {
                     description, landmarks.index_tip.x, landmarks.index_tip.y
                 );
 
-                // Expected behavior:
-                // - Closed pinch (8528) should have smallest distance
-                // - Open hand (8522) should have largest distance
-                // - Medium (8527) should be in between
-                match *filename {
-                    "IMG_8528.jpeg" => {
-                        println!(
-                            "[VERIFY] Closed pinch detected with distance: {:.2}px",
-                            distance
-                        );
-                        // We expect this to be relatively small
-                        println!("[INFO] Closed pinch distance should be smallest");
-                    }
-                    "IMG_8522.jpeg" => {
-                        println!(
-                            "[VERIFY] Open hand detected with distance: {:.2}px",
-                            distance
-                        );
-                        // We expect this to be relatively large
-                        println!("[INFO] Open hand distance should be largest");
-                    }
-                    "IMG_8527.jpeg" => {
-                        println!(
-                            "[VERIFY] Medium gesture detected with distance: {:.2}px",
-                            distance
-                        );
-                        // We expect this to be in between
-                        println!("[INFO] Medium gesture distance should be in between");
-                    }
-                    _ => {}
-                }
-            } else {
-                println!(
-                    "[WARNING] No hand detected in {} ({})",
-                    filename, description
+                // Validate positions are reasonable (within image bounds)
+                assert!(
+                    landmarks.thumb_tip.x >= 0.0 && landmarks.thumb_tip.x <= 4032.0,
+                    "Thumb x position {} should be within image width",
+                    landmarks.thumb_tip.x
+                );
+                assert!(
+                    landmarks.thumb_tip.y >= 0.0 && landmarks.thumb_tip.y <= 3024.0,
+                    "Thumb y position {} should be within image height",
+                    landmarks.thumb_tip.y
+                );
+                assert!(
+                    landmarks.index_tip.x >= 0.0 && landmarks.index_tip.x <= 4032.0,
+                    "Index x position {} should be within image width",
+                    landmarks.index_tip.x
+                );
+                assert!(
+                    landmarks.index_tip.y >= 0.0 && landmarks.index_tip.y <= 3024.0,
+                    "Index y position {} should be within image height",
+                    landmarks.index_tip.y
                 );
             }
         }
 
-        println!("\n[SUCCESS] All real image tests completed!");
+        // Verify that all three images were processed
+        println!("\n[VERIFY] Validating pinch distance ordering...");
+        assert_eq!(distances.len(), 3, "Should have distances for all 3 images");
+
+        let open_distance = *distances.get("IMG_8522.jpeg").unwrap();
+        let medium_distance = *distances.get("IMG_8527.jpeg").unwrap();
+        let closed_distance = *distances.get("IMG_8528.jpeg").unwrap();
+
+        println!("[VERIFY] Open hand distance: {:.2}px", open_distance);
+        println!("[VERIFY] Medium gesture distance: {:.2}px", medium_distance);
+        println!("[VERIFY] Closed pinch distance: {:.2}px", closed_distance);
+
+        // Verify distance ordering: closed < medium < open
+        // Based on actual test output:
+        // - Closed pinch (IMG_8528): ~6.71px
+        // - Medium/wider should be larger
+        // - Open hand should be largest
+        assert!(
+            closed_distance < medium_distance,
+            "Closed pinch distance ({:.2}px) should be less than medium distance ({:.2}px)",
+            closed_distance,
+            medium_distance
+        );
+        assert!(
+            medium_distance < open_distance,
+            "Medium distance ({:.2}px) should be less than open hand distance ({:.2}px)",
+            medium_distance,
+            open_distance
+        );
+        println!("[VERIFY] Distance ordering validated: closed < medium < open ✓");
+
+        // Validate that closed pinch is reasonably small (< 20px based on actual results)
+        assert!(
+            closed_distance < 20.0,
+            "Closed pinch should have very small distance, got {:.2}px",
+            closed_distance
+        );
+        println!(
+            "[VERIFY] Closed pinch distance {:.2}px is appropriately small ✓",
+            closed_distance
+        );
+
+        println!("\n[SUCCESS] All real image tests passed with assertions!");
         Ok(())
     }
 
@@ -758,17 +798,39 @@ mod tests {
                 description,
                 update.position
             );
+
+            // Assert that all real images produced position updates
+            assert!(
+                update.position.is_some(),
+                "Real image {} ({}) should have detected a hand and sent position",
+                filename,
+                description
+            );
+
             if let Some(pos) = update.position {
                 println!(
                     "[VERIFY]   - Position for {}: ({:.2}, {:.2})",
                     filename, pos.x, pos.y
                 );
-            } else {
-                println!("[VERIFY]   - No position for {}", filename);
+
+                // Validate positions are within reasonable bounds
+                assert!(
+                    pos.x >= 0.0 && pos.x <= 4032.0,
+                    "Position x {} should be within image width for {}",
+                    pos.x,
+                    filename
+                );
+                assert!(
+                    pos.y >= 0.0 && pos.y <= 3024.0,
+                    "Position y {} should be within image height for {}",
+                    pos.y,
+                    filename
+                );
+                println!("[VERIFY]   - Position bounds validated for {} ✓", filename);
             }
         }
 
-        println!("\n[SUCCESS] All real image integration tests passed!");
+        println!("\n[SUCCESS] All real image integration tests passed with assertions!");
         Ok(())
     }
 }
