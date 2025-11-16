@@ -239,7 +239,7 @@ mod tests {
         let client = reqwest::Client::new();
 
         // Simulate sending position updates
-        let test_positions = vec![
+        let test_positions = [
             Some(Position::new(100.0, 150.0)),
             Some(Position::new(200.0, 250.0)),
             None, // No hand detected
@@ -436,7 +436,7 @@ mod tests {
         println!("[TRACKER] Hand tracker initialized successfully");
 
         // Test images: 8522 is open, 8527 is wider, 8528 is closed (pinch)
-        let test_images = vec![
+        let test_images = [
             ("IMG_8522.jpeg", "open hand"),
             ("IMG_8527.jpeg", "wider/medium"),
             ("IMG_8528.jpeg", "closed pinch"),
@@ -563,7 +563,7 @@ mod tests {
 
         // Process synthetic images and send updates
         println!("\n[TEST] Creating synthetic test images...");
-        let test_images = vec![
+        let test_images = [
             create_pinch_gesture_image(640, 480, 50.0)?,
             create_pinch_gesture_image(640, 480, 100.0)?,
             create_pinch_gesture_image(640, 480, 150.0)?,
@@ -677,7 +677,7 @@ mod tests {
         println!("[TRACKER] Hand tracker initialized");
 
         // Load and process real images
-        let image_files = vec![
+        let image_files = [
             ("IMG_8522.jpeg", "open hand"),
             ("IMG_8527.jpeg", "wider/medium"),
             ("IMG_8528.jpeg", "closed pinch"),
