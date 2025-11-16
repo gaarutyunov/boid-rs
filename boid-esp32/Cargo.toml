@@ -2,7 +2,7 @@
 name = "boid-esp32"
 version = "0.1.0"
 edition = "2021"
-authors = ["Boid Contributors"]
+authors = ["German Arutyunov <germanarutyunov@gmail.com>"]
 license = "MIT"
 
 [dependencies]
