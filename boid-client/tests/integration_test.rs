@@ -214,14 +214,8 @@ mod tests {
         assert_eq!(received.count(), 3);
 
         let all_updates = received.get_all();
-        assert_eq!(
-            all_updates[0].position,
-            Some(Position::new(100.0, 150.0))
-        );
-        assert_eq!(
-            all_updates[1].position,
-            Some(Position::new(200.0, 250.0))
-        );
+        assert_eq!(all_updates[0].position, Some(Position::new(100.0, 150.0)));
+        assert_eq!(all_updates[1].position, Some(Position::new(200.0, 250.0)));
         assert_eq!(all_updates[2].position, None);
 
         Ok(())
@@ -344,10 +338,7 @@ mod tests {
             let hand_result = tracker.process_frame(img)?;
 
             let position = if let Some(ref hand_data) = hand_result {
-                Some(Position::new(
-                    hand_data.index_tip.x,
-                    hand_data.index_tip.y,
-                ))
+                Some(Position::new(hand_data.index_tip.x, hand_data.index_tip.y))
             } else {
                 None
             };
