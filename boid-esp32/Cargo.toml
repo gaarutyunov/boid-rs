@@ -1,9 +1,9 @@
 [package]
 name = "boid-esp32"
-version.workspace = true
-edition.workspace = true
-authors.workspace = true
-license.workspace = true
+version = "0.1.0"
+edition = "2021"
+authors = ["Boid Contributors"]
+license = "MIT"
 
 [dependencies]
 boid-core = { path = "../boid-core" }
