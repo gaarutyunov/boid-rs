@@ -2,7 +2,7 @@
 
 ## Compatibility Challenge
 
-The `esp32cam_rs` library requires `esp-idf-svc` which uses Rust `std` library, but our Embassy-based boid simulation uses `no_std` for better embedded performance.
+The `esp32cam_rs` library requires `esp-idf-svc` which uses Rust `std` library.
 
 ## Solution Options
 
@@ -10,28 +10,27 @@ The `esp32cam_rs` library requires `esp-idf-svc` which uses Rust `std` library, 
 Run camera in a separate binary that uses `std` + `esp-idf-svc`:
 
 ```
-boid-embassy-std/     # New std-based camera server
+boid-esp32-camera/    # New std-based camera server
 ├── Cargo.toml        # Uses esp-idf-svc, esp32cam
 └── src/
     └── main.rs       # Camera MJPEG server only
 
-boid-embassy/         # Existing no_std boid simulation
+boid-esp32/           # Existing boid simulation
 └── ... (unchanged)
 ```
 
 Benefits:
 - Camera streaming works immediately with `esp32cam_rs`
-- Boid simulation stays lightweight with Embassy/no_std
 - Can run both or separately
 
 ### Option 2: Manual FFI Bindings
-Create no_std-compatible bindings to ESP-IDF camera driver.
+Create custom bindings to ESP-IDF camera driver.
 
 Pros: Single binary, full control
-Cons: Complex, requires unsafe code
+Cons: Complex, requires unsafe code and careful integration
 
-### Option 3: Community no_std Camera Crate
-Wait for or contribute to a no_std ESP32 camera library.
+### Option 3: Community Camera Crate
+Wait for or contribute to an alternative ESP32 camera library.
 
 ## Recommended Quick Start
 

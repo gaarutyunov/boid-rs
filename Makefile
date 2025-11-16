@@ -6,21 +6,21 @@ help:
 	@echo "  make check         - Run all checks (tests, clippy, format) for std packages"
 	@echo "  make test          - Run tests for boid-core and boid-wasm"
 	@echo "  make test-all      - Run tests for all packages including workspace tests"
-	@echo "  make test-embassy  - Check boid-embassy builds (requires ESP toolchain)"
+	@echo "  make test-esp32    - Check boid-esp32 builds (requires ESP toolchain)"
 	@echo "  make clippy        - Run clippy linter on std packages"
 	@echo "  make fmt           - Format all code"
 	@echo "  make fmt-check     - Check code formatting without modifying"
 	@echo "  make clean         - Clean build artifacts"
 	@echo "  make wasm          - Build WASM package"
-	@echo "  make check-embassy - Run all checks including embassy"
+	@echo "  make check-esp32   - Run all checks including esp32"
 
 # Run all checks before committing (std packages only)
 check: test clippy fmt-check
 	@echo "✅ All checks passed!"
 
-# Run all checks including embassy (requires ESP toolchain)
-check-embassy: test-all test-embassy clippy fmt-check
-	@echo "✅ All checks including embassy passed!"
+# Run all checks including esp32 (requires ESP toolchain)
+check-esp32: test-all test-esp32 clippy fmt-check
+	@echo "✅ All checks including esp32 passed!"
 
 # Run tests for standard environment packages
 test:
@@ -30,15 +30,15 @@ test:
 	@cargo test -p boid-wasm
 	@echo "✅ Tests passed!"
 
-# Run all workspace tests (now works because default-members excludes embassy)
+# Run all workspace tests (now works because default-members excludes esp32)
 test-all:
 	@echo "Running workspace tests..."
 	@cargo test --workspace
 	@echo "✅ Workspace tests passed!"
 
-# Check that embassy builds correctly (requires ESP Rust toolchain)
-test-embassy:
-	@echo "Checking boid-embassy builds..."
+# Check that esp32 builds correctly (requires ESP Rust toolchain)
+test-esp32:
+	@echo "Checking boid-esp32 builds..."
 	@if ! rustup toolchain list | grep -q esp; then \
 		echo "❌ ESP toolchain not installed. Install with:"; \
 		echo "   cargo install espup && espup install"; \
@@ -51,8 +51,8 @@ test-embassy:
 		echo "   . $$HOME/export-esp.sh"; \
 		exit 1; \
 	fi
-	@cd boid-embassy && cargo +esp check --target xtensa-esp32s3-none-elf
-	@echo "✅ Embassy build check passed!"
+	@cd boid-esp32 && cargo +esp check --target xtensa-esp32s3-none-elf
+	@echo "✅ ESP32 build check passed!"
 
 # Run clippy linter
 clippy:

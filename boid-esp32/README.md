@@ -1,6 +1,6 @@
-# Boid Simulation for ESP32-S3 Sense with Embassy
+# Boid Simulation for ESP32-S3 Sense
 
-This project implements a real-time boid flocking simulation on the Xiao Seed ESP32-S3 Sense microcontroller using the Embassy async framework and an ST7789-based LCD display.
+This project implements a real-time boid flocking simulation on the Xiao Seed ESP32-S3 Sense microcontroller with an ST7789-based LCD display.
 
 ## Hardware Requirements
 
@@ -44,7 +44,7 @@ cargo install espflash
 ### Build the project
 
 ```bash
-cd boid-embassy
+cd boid-esp32
 cargo build --release
 ```
 
@@ -58,7 +58,7 @@ cargo run --release
 
 Or manually flash:
 ```bash
-espflash flash target/xtensa-esp32s3-none-elf/release/boid-embassy --monitor
+espflash flash target/xtensa-esp32s3-none-elf/release/boid-esp32 --monitor
 ```
 
 ## Configuration
@@ -83,16 +83,10 @@ Timer::after(Duration::from_millis(33)).await; // ~30 FPS
 
 ## ESP32-C3/C6 Support
 
-To build for ESP32-C3 or C6, update `boid-embassy/Cargo.toml`:
+To build for ESP32-C3 or C6, update `boid-esp32/Cargo.toml`:
 
 **For ESP32-C3:**
 ```toml
-[dependencies]
-embassy-executor = { version = "0.6", features = ["arch-riscv32", "executor-thread"] }
-esp-hal = { version = "0.21", features = ["esp32c3"] }
-esp-backtrace = { version = "0.14", features = ["esp32c3", "panic-handler", "exception-handler", "println"] }
-esp-println = { version = "0.12", features = ["esp32c3", "log"] }
-
 [features]
 default = ["esp32c3"]
 ```
@@ -114,7 +108,7 @@ targets = ["riscv32imc-unknown-none-elf"]
 
 ## Architecture
 
-- `main.rs`: Main application loop, Embassy executor, display initialization
+- `main.rs`: Main application loop, display initialization
 - `display.rs`: Display driver wrapper for ST7789
 - `rng.rs`: Simple pseudo-random number generator for embedded use
 - `boid-core`: Core boid algorithm (no_std compatible)

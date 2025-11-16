@@ -28,4 +28,4 @@ playwright-report/
 test-results/
 
 # Configuration files with secrets
-boid-embassy/cfg.toml
+boid-esp32/cfg.toml

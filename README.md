@@ -2,7 +2,7 @@
 
 A flocking behavior simulation implementing Craig Reynolds' Boid algorithm, built with Rust for multiple platforms:
 - WebAssembly for web browsers with MediaPipe hand tracking
-- Embedded systems (ESP32-S3 Sense, C3, C6) with Embassy framework and WiFi HTTP server
+- Embedded systems (ESP32-S3 Sense, C3, C6) with WiFi HTTP server
 - Desktop/Raspberry Pi client with OpenCV hand tracking for controlling remote ESP32 devices
 
 ## Features
@@ -16,7 +16,6 @@ A flocking behavior simulation implementing Craig Reynolds' Boid algorithm, buil
 - **Embedded Support**: Runs on ESP32-S3 Sense, C3, and C6 microcontrollers with LED displays
 - **WiFi HTTP Server**: ESP32 hosts HTTP API for remote control
 - **Client-Server Architecture**: Control ESP32 boids from PC/Raspberry Pi via WiFi
-- **Embassy Framework**: Async runtime for efficient embedded execution
 - **Touch Support**: Works on both desktop (mouse) and mobile (touch) devices
 - **Real-time Controls**: Adjust simulation parameters on the fly
 - **Automatic Deployment**: GitHub Actions workflow for continuous deployment to GitHub Pages
@@ -43,9 +42,9 @@ boid-rs/
 │   │   ├── index.js    # MediaPipe integration
 │   │   └── package.json
 │   └── Cargo.toml
-├── boid-embassy/       # ESP32-S3 embedded impl with WiFi HTTP server
+├── boid-esp32/         # ESP32-S3 embedded impl with WiFi HTTP server
 │   ├── src/
-│   │   ├── main.rs     # Main Embassy application
+│   │   ├── main.rs     # Main ESP32 application
 │   │   ├── http_server.rs  # HTTP API server
 │   │   ├── wifi_config.rs  # WiFi credentials
 │   │   ├── display.rs  # ST7789 display driver wrapper
@@ -254,14 +253,14 @@ Once the application is running in your browser:
 For running on Xiao ESP32-S3 Sense (default) with an LED display:
 
 ```bash
-# Navigate to the embassy crate
-cd boid-embassy
+# Navigate to the esp32 crate
+cd boid-esp32
 
 # Build and flash to ESP32-S3
 cargo run --release
 ```
 
-See [boid-embassy/README.md](boid-embassy/README.md) for detailed hardware setup and configuration.
+See [boid-esp32/README.md](boid-esp32/README.md) for detailed hardware setup and configuration.
 
 ### Client-Server Mode (ESP32 Camera Stream + Hand Tracking)
 
@@ -271,7 +270,7 @@ ESP32 streams its camera to PC/Raspberry Pi for hand tracking processing.
 
 1. Create WiFi configuration file:
 ```bash
-cd boid-embassy
+cd boid-esp32
 cp .env.example .env
 ```
 
@@ -286,7 +285,7 @@ WIFI_PASSWORD=YourPassword
 cargo +nightly run --release
 ```
 
-**Note**: Camera streaming requires additional implementation. See `boid-embassy/src/camera.rs` for details.
+**Note**: Camera streaming requires additional implementation. See `boid-esp32/src/camera.rs` for details.
 
 4. Note the IP address displayed on the serial console or LCD (e.g., `192.168.1.100`)
 
@@ -332,15 +331,15 @@ boid-client --server http://192.168.1.100 --debug
 
 ⚠️ **Camera Streaming Compatibility:**
 
-The Embassy boid simulation uses `no_std` for optimal embedded performance, but the recommended ESP32 camera library (`esp32cam_rs`) requires `std` via `esp-idf-svc`.
+The recommended ESP32 camera library (`esp32cam_rs`) requires `std` via `esp-idf-svc`.
 
 **Current Options:**
-1. **Hybrid Approach**: Run separate std-based camera server alongside no_std boid simulation (see `boid-embassy/README_CAMERA.md`)
-2. **Manual FFI**: Create custom no_std bindings to ESP-IDF camera driver (complex)
+1. **Hybrid Approach**: Run separate std-based camera server alongside boid simulation (see `boid-esp32/README_CAMERA.md`)
+2. **Manual FFI**: Create custom bindings to ESP-IDF camera driver (complex)
 3. **Client Fallback**: Test full pipeline using client's local camera with `--video-source 0`
 
 **Pin Configuration and Reference Implementation:**
-- See `boid-embassy/src/camera.rs` for XIAO ESP32S3 Sense pin mapping
+- See `boid-esp32/src/camera.rs` for XIAO ESP32S3 Sense pin mapping
 - Reference `esp32cam_rs` implementation provided in comments
 - Link to working webserver example: https://github.com/Kezii/esp32cam_rs
 
@@ -366,7 +365,7 @@ open http://192.168.1.100/stream
 ```
 
 **Note**: Camera streaming endpoint requires ESP-IDF camera driver integration.
-See `boid-embassy/src/camera.rs` for implementation details.
+See `boid-esp32/src/camera.rs` for implementation details.
 
 #### POST /api/position
 Set target position for boids to seek:
@@ -543,18 +542,18 @@ make fmt-check
 **Run all checks (recommended before committing):**
 ```bash
 make check
-# Or with embassy:
-make check-embassy
+# Or with esp32:
+make check-esp32
 ```
 
-**Note:** The `boid-embassy` crate is **excluded from the workspace** entirely since it requires ESP Rust toolchain (Xtensa architecture for ESP32-S3). Build it separately: `cd boid-embassy && cargo build`, or use `make test-embassy` to check it builds correctly. For C3/C6 support, see boid-embassy/README.md.
+**Note:** The `boid-esp32` crate is **excluded from the workspace** entirely since it requires ESP Rust toolchain (Xtensa architecture for ESP32-S3). Build it separately: `cd boid-esp32 && cargo build`, or use `make test-esp32` to check it builds correctly. For C3/C6 support, see boid-esp32/README.md.
 
 ### Adding New Features
 
 1. **Core Algorithm Changes**: Modify `boid-core/src/lib.rs`
 2. **WASM Bindings**: Update `boid-wasm/src/lib.rs`
 3. **UI Changes**: Edit `boid-wasm/www/index.html` and `index.js`
-4. **Embedded Changes**: Update `boid-embassy/src/`
+4. **Embedded Changes**: Update `boid-esp32/src/`
 
 ### Writing Tests
 

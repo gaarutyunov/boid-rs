@@ -5,9 +5,9 @@ members = [
     "boid-shared",
     "boid-client",
 ]
-# Note: boid-embassy is intentionally excluded from the workspace
-# It requires nightly toolchain and RISC-V target, making it incompatible
-# with standard workspace operations. Build it separately: cd boid-embassy && cargo build
+# Note: boid-esp32 is intentionally excluded from the workspace
+# It requires ESP toolchain and target, making it incompatible
+# with standard workspace operations. Build it separately: cd boid-esp32 && cargo build
 resolver = "2"
 
 [workspace.package]

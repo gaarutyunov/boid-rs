@@ -8,7 +8,7 @@ This is a multi-platform Rust boid simulation with five main components:
 - **boid-core**: Pure Rust no_std-compatible algorithm
 - **boid-shared**: Shared types for client-server communication (no_std compatible)
 - **boid-wasm**: WebAssembly frontend for browsers with MediaPipe hand tracking
-- **boid-embassy**: Embedded ESP32 implementation with Embassy framework, WiFi, and HTTP server
+- **boid-esp32**: Embedded ESP32 implementation with WiFi and HTTP server
 - **boid-client**: Desktop/Raspberry Pi client with OpenCV hand tracking
 
 ## Architecture
@@ -42,8 +42,8 @@ This is a multi-platform Rust boid simulation with five main components:
 - `StatusResponse`: Server status information
 - All types use serde for JSON serialization (optional std feature)
 
-### Embassy/ESP32 (`boid-embassy/src/`)
-- `main.rs`: Main Embassy application with WiFi and HTTP server
+### ESP32 (`boid-esp32/src/`)
+- `main.rs`: Main ESP32 application with WiFi and HTTP server
 - `http_server.rs`: HTTP API handlers for position and settings endpoints
 - `wifi_config.rs`: WiFi credentials (loaded from environment variables)
 - `display.rs`: ST7789 display driver wrapper
@@ -206,14 +206,13 @@ LCD Display                                Position Updates
    - `POST /api/settings` - Update boid configuration
    - `GET /api/status` - Get simulation status
 4. Camera module (OV2640) connected via I2C and parallel interface
-5. Updates sent via embassy channels to main simulation loop
+5. Updates sent via channels to main simulation loop
 6. Main loop checks channels non-blockingly each frame
 
 **Note**: Camera streaming has a std/no_std compatibility issue:
-- Embassy uses no_std for optimal embedded performance
 - esp32cam_rs (recommended) requires std via esp-idf-svc
-- See `boid-embassy/README_CAMERA.md` for hybrid approach options
-- See `boid-embassy/src/camera.rs` for pin config and reference code
+- See `boid-esp32/README_CAMERA.md` for hybrid approach options
+- See `boid-esp32/src/camera.rs` for pin config and reference code
 - Test without ESP32 camera: use client with `--video-source 0`
 
 ### Client Side
@@ -236,11 +235,11 @@ LCD Display                                Position Updates
 - Web UI HTML: `boid-wasm/www/index.html`
 - Web UI JS: `boid-wasm/www/index.js`
 - E2E tests: `boid-wasm/www/tests/*.spec.js`
-- ESP32 main: `boid-embassy/src/main.rs`
-- HTTP server: `boid-embassy/src/http_server.rs`
-- Camera module (reference): `boid-embassy/src/camera.rs`
-- Camera documentation: `boid-embassy/README_CAMERA.md`
-- WiFi config: `boid-embassy/src/wifi_config.rs`
+- ESP32 main: `boid-esp32/src/main.rs`
+- HTTP server: `boid-esp32/src/http_server.rs`
+- Camera module (reference): `boid-esp32/src/camera.rs`
+- Camera documentation: `boid-esp32/README_CAMERA.md`
+- WiFi config: `boid-esp32/src/wifi_config.rs`
 - Client main: `boid-client/src/main.rs`
 - Hand tracker: `boid-client/src/hand_tracker.rs`
 - CI config: `.github/workflows/ci.yml`
@@ -261,9 +260,9 @@ npm run test:e2e
 # View e2e test results
 npm run test:e2e:ui  # Interactive mode
 
-# Test ESP32 build (requires nightly + ESP toolchain)
-cd boid-embassy
-cargo +nightly check
+# Test ESP32 build (requires ESP toolchain)
+cd boid-esp32
+cargo +esp check
 
 # Build client (requires OpenCV)
 cd boid-client

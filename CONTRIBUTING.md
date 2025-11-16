@@ -21,8 +21,8 @@ Thank you for your interest in contributing to this project! This guide will hel
 # Quick check - runs all standard environment checks
 make check
 
-# Or if you have ESP toolchain (for embassy):
-make check-embassy
+# Or if you have ESP toolchain (for esp32):
+make check-esp32
 
 # Or manually run each check:
 cargo test --workspace                   # Run all workspace tests
@@ -34,11 +34,11 @@ If any of these fail, fix the issues before committing.
 
 ### Workspace Configuration
 
-The `boid-embassy` crate is **excluded from the workspace** entirely:
+The `boid-esp32` crate is **excluded from the workspace** entirely:
 - It requires ESP Rust toolchain (Xtensa architecture) incompatible with standard builds
-- `cargo test --workspace` runs successfully without trying to build embassy
-- Build embassy separately: `cd boid-embassy && cargo build`
-- Use `make test-embassy` to check the embassy crate builds correctly
+- `cargo test --workspace` runs successfully without trying to build esp32
+- Build esp32 separately: `cd boid-esp32 && cargo build`
+- Use `make test-esp32` to check the esp32 crate builds correctly
 
 ### Fixing Issues
 
@@ -69,7 +69,7 @@ Read the clippy output and fix the suggested issues. Common fixes:
 2. **Make your changes** in the appropriate crate:
    - `boid-core/` - Core algorithm changes
    - `boid-wasm/` - WebAssembly frontend changes
-   - `boid-embassy/` - Embedded system changes
+   - `boid-esp32/` - Embedded system changes
 
 3. **Write tests** for new functionality:
    ```rust
@@ -131,15 +131,15 @@ cargo test -p boid-wasm
 cargo check -p boid-wasm --target wasm32-unknown-unknown
 ```
 
-### boid-embassy
-Embedded implementation for ESP32-C3/C6.
+### boid-esp32
+Embedded implementation for ESP32-S3/C3/C6.
 
 **Key files:**
 - `src/main.rs` - Main application
 - `src/display.rs` - Display driver
 - `src/rng.rs` - Random number generator
 
-**Note:** This crate requires special build configuration and can't be tested in the standard environment. See [boid-embassy/README.md](boid-embassy/README.md) for details.
+**Note:** This crate requires special build configuration and can't be tested in the standard environment. See [boid-esp32/README.md](boid-esp32/README.md) for details.
 
 ## Code Style
 
@@ -160,25 +160,25 @@ We follow standard Rust conventions:
 
 ## Common Issues
 
-### Embassy is not in the workspace
-The `boid-embassy` crate is intentionally excluded from the workspace because it requires ESP Rust toolchain (Xtensa architecture for ESP32-S3). This is by design - build it separately when needed.
+### ESP32 is not in the workspace
+The `boid-esp32` crate is intentionally excluded from the workspace because it requires ESP Rust toolchain (Xtensa architecture for ESP32-S3). This is by design - build it separately when needed.
 
-### Testing Embassy
-The embassy crate is excluded from default workspace members. To test it:
+### Testing ESP32
+The esp32 crate is excluded from default workspace members. To test it:
 ```bash
 # Check it builds correctly
-make test-embassy
+make test-esp32
 
 # Or manually with ESP toolchain:
-cd boid-embassy
+cd boid-esp32
 cargo +esp check --target xtensa-esp32s3-none-elf
 
 # Or run/flash to actual hardware:
-cd boid-embassy
+cd boid-esp32
 cargo run --release
 ```
 
-**Prerequisites for embassy (ESP32-S3):**
+**Prerequisites for ESP32-S3:**
 - ESP Rust toolchain: `cargo install espup && espup install`
 - Environment: `. $HOME/export-esp.sh` (run after espup install)
 - espflash: `cargo install espflash`
@@ -186,7 +186,7 @@ cargo run --release
 **For ESP32-C3/C6 (RISC-V architecture):**
 - Nightly toolchain: `rustup toolchain install nightly`
 - RISC-V target: `rustup target add riscv32imc-unknown-none-elf --toolchain nightly`
-- Update Cargo.toml features and .cargo/config.toml (see boid-embassy/README.md)
+- Update Cargo.toml features and .cargo/config.toml (see boid-esp32/README.md)
 
 ### WASM target not installed
 ```bash
