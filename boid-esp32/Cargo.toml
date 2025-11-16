@@ -1,5 +1,5 @@
 [package]
-name = "boid-embassy"
+name = "boid-esp32"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
