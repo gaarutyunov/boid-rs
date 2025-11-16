@@ -173,3 +173,70 @@ jobs:
           name: playwright-report
           path: boid-wasm/www/playwright-report/
           retention-days: 30
+
+  qemu-test:
+    name: ESP32-S3 QEMU Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git ninja-build libglib2.0-dev libpixman-1-dev \
+            libgcrypt20-dev libslirp-dev python3-pip
+
+      - name: Cache QEMU build
+        id: cache-qemu
+        uses: actions/cache@v4
+        with:
+          path: ~/qemu
+          key: ${{ runner.os }}-qemu-esp32s3-v1
+
+      - name: Build QEMU with ESP32-S3 support
+        if: steps.cache-qemu.outputs.cache-hit != 'true'
+        run: |
+          cd ~
+          git clone --depth 1 --branch esp-develop https://github.com/espressif/qemu.git
+          cd qemu
+          ./configure \
+            --target-list=xtensa-softmmu \
+            --enable-gcrypt \
+            --enable-slirp \
+            --disable-gtk \
+            --disable-vnc \
+            --disable-sdl \
+            --enable-debug
+          ninja -C build
+
+      - name: Install ESP Rust toolchain
+        run: |
+          cargo install espup --version 0.12.0
+          espup install
+          echo "LIBCLANG_PATH=$HOME/.rustup/toolchains/esp/xtensa-esp-elf-clang/esp-18.1.2_20240912/esp-clang/lib" >> $GITHUB_ENV
+          echo "$HOME/.rustup/toolchains/esp/xtensa-esp-elf-clang/esp-18.1.2_20240912/esp-clang/bin" >> $GITHUB_PATH
+
+      - name: Source ESP environment
+        run: |
+          . ~/export-esp.sh
+          echo "PATH=$PATH" >> $GITHUB_ENV
+          echo "LIBCLANG_PATH=$LIBCLANG_PATH" >> $GITHUB_ENV
+
+      - name: Install espflash
+        run: cargo install espflash --version 3.0.0
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: boid-esp32/target
+          key: ${{ runner.os }}-esp32-qemu-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run QEMU test
+        env:
+          ESP_QEMU_PATH: ~/qemu/build/qemu-system-xtensa
+          QEMU_TIMEOUT: 45
+        run: |
+          cd boid-esp32
+          chmod +x run_qemu.sh
+          ./run_qemu.sh

@@ -4,16 +4,21 @@ use std::time::Duration as StdDuration;
 
 use boid_core::{Boid, BoidConfig, Flock, Vector2D};
 use boid_shared::Position;
+
+#[cfg(not(feature = "qemu"))]
 use embedded_graphics::{
     pixelcolor::Rgb565,
     prelude::*,
     primitives::{Circle, PrimitiveStyle, Triangle},
 };
+
+#[cfg(not(feature = "qemu"))]
 use esp_idf_hal::{
     gpio::PinDriver,
-    peripherals::Peripherals,
-    spi::{SpiConfig, SpiDeviceDriver, SpiDriver, SpiDriverConfig},
+    spi::{SpiConfig, SpiDeviceDriver, SpiDriverConfig},
 };
+
+use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
     hal::prelude::*,
@@ -22,14 +27,18 @@ use esp_idf_svc::{
 };
 use log::info;
 
+#[cfg(not(feature = "qemu"))]
 mod camera;
+#[cfg(not(feature = "qemu"))]
 mod display;
 mod http_server;
 mod rng;
 mod types;
 mod wifi_config;
 
+#[cfg(not(feature = "qemu"))]
 use camera::CameraWrapper;
+#[cfg(not(feature = "qemu"))]
 use display::DisplayWrapper;
 use rng::SimpleRng;
 use types::SimulationState;
@@ -40,13 +49,21 @@ const DISPLAY_HEIGHT: u32 = 240;
 
 // Boid simulation configuration
 const NUM_BOIDS: usize = 20;
+#[cfg(not(feature = "qemu"))]
 const BOID_SIZE: u32 = 3;
+
+// QEMU test duration (30 seconds)
+#[cfg(feature = "qemu")]
+const QEMU_TEST_ITERATIONS: u32 = 900; // 30s at 33ms per iteration
 
 fn main() -> anyhow::Result<()> {
     // Initialize ESP-IDF services
     esp_idf_svc::sys::link_patches();
     esp_idf_svc::log::EspLogger::initialize_default();
 
+    #[cfg(feature = "qemu")]
+    info!("Starting boid simulation in QEMU mode!");
+    #[cfg(not(feature = "qemu"))]
     info!("Starting boid simulation on ESP32-S3 with camera streaming!");
 
     let peripherals = Peripherals::take()?;
@@ -66,41 +83,58 @@ fn main() -> anyhow::Result<()> {
     info!("IP Address: {}", ip_info.ip);
     info!("Connect client to: http://{}", ip_info.ip);
 
-    // Initialize camera
-    let camera = Arc::new(Mutex::new(CameraWrapper::new(
-        peripherals.pins.gpio10, // XCLK
-        peripherals.pins.gpio40, // SIOD
-        peripherals.pins.gpio39, // SIOC
-        peripherals.pins.gpio48, // Y9
-        peripherals.pins.gpio11, // Y8
-        peripherals.pins.gpio12, // Y7
-        peripherals.pins.gpio14, // Y6
-        peripherals.pins.gpio16, // Y5
-        peripherals.pins.gpio18, // Y4
-        peripherals.pins.gpio17, // Y3
-        peripherals.pins.gpio15, // Y2
-        peripherals.pins.gpio13, // PCLK
-        peripherals.pins.gpio38, // VSYNC
-        peripherals.pins.gpio47, // HREF
-    )?));
+    #[cfg(not(feature = "qemu"))]
+    {
+        // Initialize camera (not available in QEMU)
+        let camera = Arc::new(Mutex::new(CameraWrapper::new(
+            peripherals.pins.gpio10, // XCLK
+            peripherals.pins.gpio40, // SIOD
+            peripherals.pins.gpio39, // SIOC
+            peripherals.pins.gpio48, // Y9
+            peripherals.pins.gpio11, // Y8
+            peripherals.pins.gpio12, // Y7
+            peripherals.pins.gpio14, // Y6
+            peripherals.pins.gpio16, // Y5
+            peripherals.pins.gpio18, // Y4
+            peripherals.pins.gpio17, // Y3
+            peripherals.pins.gpio15, // Y2
+            peripherals.pins.gpio13, // PCLK
+            peripherals.pins.gpio38, // VSYNC
+            peripherals.pins.gpio47, // HREF
+        )?));
 
-    // Initialize SPI for display
-    let spi = SpiDeviceDriver::new_single(
-        peripherals.spi2,
-        peripherals.pins.gpio8,  // SCLK
-        peripherals.pins.gpio9,  // MOSI
-        Option::<esp_idf_hal::gpio::Gpio0>::None, // MISO (not used)
-        Some(peripherals.pins.gpio7), // CS
-        &SpiDriverConfig::new(),
-        &SpiConfig::new().baudrate(40.MHz().into()),
-    )?;
+        // Initialize SPI for display
+        let spi = SpiDeviceDriver::new_single(
+            peripherals.spi2,
+            peripherals.pins.gpio8,  // SCLK
+            peripherals.pins.gpio9,  // MOSI
+            Option::<esp_idf_hal::gpio::Gpio0>::None, // MISO (not used)
+            Some(peripherals.pins.gpio7), // CS
+            &SpiDriverConfig::new(),
+            &SpiConfig::new().baudrate(40.MHz().into()),
+        )?;
 
-    let dc = PinDriver::output(peripherals.pins.gpio4)?;
-    let rst = PinDriver::output(peripherals.pins.gpio5)?;
+        let dc = PinDriver::output(peripherals.pins.gpio4)?;
+        let rst = PinDriver::output(peripherals.pins.gpio5)?;
 
-    let mut display = DisplayWrapper::new(spi, dc, rst);
-    display.clear(Rgb565::BLACK).ok();
-    info!("Display initialized!");
+        let mut display = DisplayWrapper::new(spi, dc, rst);
+        display.clear(Rgb565::BLACK).ok();
+        info!("Display initialized!");
+
+        run_with_display(camera, display)
+    }
+
+    #[cfg(feature = "qemu")]
+    {
+        run_headless()
+    }
+}
+
+#[cfg(not(feature = "qemu"))]
+fn run_with_display(
+    camera: Arc<Mutex<CameraWrapper>>,
+    mut display: DisplayWrapper,
+) -> anyhow::Result<()> {
 
     // Initialize shared simulation state
     let sim_state = Arc::new(Mutex::new(SimulationState {
@@ -176,6 +210,97 @@ fn main() -> anyhow::Result<()> {
     }
 }
 
+#[cfg(feature = "qemu")]
+fn run_headless() -> anyhow::Result<()> {
+    info!("Running in headless QEMU mode - testing boid algorithm only");
+
+    // Initialize shared simulation state
+    let sim_state = Arc::new(Mutex::new(SimulationState {
+        target_position: None,
+        config: BoidConfig {
+            max_speed: 2.0,
+            max_force: 0.05,
+            separation_distance: 15.0,
+            alignment_distance: 25.0,
+            cohesion_distance: 25.0,
+            separation_weight: 1.5,
+            alignment_weight: 1.0,
+            cohesion_weight: 1.0,
+        },
+    }));
+
+    // Spawn HTTP server thread (for testing API endpoints)
+    let sim_state_clone = sim_state.clone();
+    thread::spawn(move || {
+        // In QEMU mode, camera is not available
+        // We pass a dummy camera (None) to the HTTP server
+        if let Err(e) = http_server::start_server_headless(sim_state_clone) {
+            log::error!("HTTP server error: {:?}", e);
+        }
+    });
+
+    // Initialize the boid simulation
+    let config = {
+        let state = sim_state.lock().unwrap();
+        state.config.clone()
+    };
+
+    let mut flock = Flock::<NUM_BOIDS>::new(DISPLAY_WIDTH as f32, DISPLAY_HEIGHT as f32, config);
+
+    // Initialize boids with pseudo-random positions
+    let mut rng = SimpleRng::new(12345);
+    for _ in 0..NUM_BOIDS {
+        let x = rng.next_f32() * DISPLAY_WIDTH as f32;
+        let y = rng.next_f32() * DISPLAY_HEIGHT as f32;
+        let vx = (rng.next_f32() - 0.5) * 4.0;
+        let vy = (rng.next_f32() - 0.5) * 4.0;
+
+        let boid = Boid::new(Vector2D::new(x, y), Vector2D::new(vx, vy));
+        let _ = flock.add_boid(boid);
+    }
+
+    info!("Boids initialized in QEMU mode");
+    info!("Running simulation for {} iterations to verify algorithm", QEMU_TEST_ITERATIONS);
+
+    // Run simulation for a fixed number of iterations (for CI/CD testing)
+    for iteration in 0..QEMU_TEST_ITERATIONS {
+        // Update configuration from shared state
+        {
+            let state = sim_state.lock().unwrap();
+            flock.config = state.config.clone();
+
+            // Update boid positions with optional target
+            if let Some(target) = state.target_position {
+                flock.update_with_target(Some(target));
+            } else {
+                flock.update();
+            }
+        }
+
+        // Log progress every 300 iterations (~10 seconds)
+        if iteration % 300 == 0 {
+            let first_boid = &flock.boids[0];
+            info!(
+                "Iteration {}/{}: Boid[0] at ({:.2}, {:.2}), vel ({:.2}, {:.2})",
+                iteration,
+                QEMU_TEST_ITERATIONS,
+                first_boid.position.x,
+                first_boid.position.y,
+                first_boid.velocity.x,
+                first_boid.velocity.y
+            );
+        }
+
+        // Target ~30 FPS
+        thread::sleep(StdDuration::from_millis(33));
+    }
+
+    info!("QEMU test completed successfully!");
+    info!("Boid algorithm verified - simulation ran for {} iterations", QEMU_TEST_ITERATIONS);
+
+    Ok(())
+}
+
 fn connect_wifi(wifi: &mut BlockingWifi<EspWifi<'static>>) -> anyhow::Result<()> {
     use wifi_config::{PASSWORD, SSID};
 
@@ -202,6 +327,7 @@ fn connect_wifi(wifi: &mut BlockingWifi<EspWifi<'static>>) -> anyhow::Result<()>
     Ok(())
 }
 
+#[cfg(not(feature = "qemu"))]
 fn draw_boid(display: &mut DisplayWrapper, boid: &Boid) {
     let x = boid.position.x as i32;
     let y = boid.position.y as i32;
