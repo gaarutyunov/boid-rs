@@ -9,8 +9,7 @@ use opencv::{
 };
 use std::time::Instant;
 
-mod hand_tracker;
-use hand_tracker::HandTracker;
+use boid_client::hand_tracker::HandTracker;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about = "Boid client with hand tracking", long_about = None)]

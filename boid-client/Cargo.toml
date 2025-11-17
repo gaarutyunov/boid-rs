@@ -5,13 +5,17 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 
+[lib]
+name = "boid_client"
+path = "src/lib.rs"
+
 [[bin]]
 name = "boid-client"
 path = "src/main.rs"
 
 [dependencies]
 boid-shared = { path = "../boid-shared" }
-opencv = { version = "0.92", features = ["imgproc", "highgui", "videoio"] }
+opencv = { version = "0.92", features = ["imgproc", "highgui", "videoio", "imgcodecs"] }
 reqwest = { version = "0.12", features = ["json", "blocking"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -20,5 +24,10 @@ anyhow = "1.0"
 log = "0.4"
 env_logger = "0.11"
 tokio = { version = "1", features = ["full"] }
+
+[dev-dependencies]
+wiremock = "0.6"
+tokio-test = "0.4"
+opencv = { version = "0.92", features = ["imgproc", "highgui", "videoio", "imgcodecs"] }
 
 [build-dependencies]

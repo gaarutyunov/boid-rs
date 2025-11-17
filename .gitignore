@@ -29,3 +29,4 @@ test-results/
 
 # Configuration files with secrets
 boid-esp32/cfg.toml
+/test-data/
