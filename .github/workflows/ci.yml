@@ -212,6 +212,8 @@ jobs:
           ninja -C build
 
       - name: Install ESP Rust toolchain
+        env:
+          RUST_BACKTRACE: 1
         run: |
           cargo install espup --version 0.12.0
           espup install --targets esp32s3
