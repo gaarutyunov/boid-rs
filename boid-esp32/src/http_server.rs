@@ -7,10 +7,12 @@ use boid_core::Vector2D;
 use boid_shared::{SettingsUpdate, StatusResponse, TargetPositionUpdate};
 use log::{error, info};
 
+#[cfg(not(feature = "qemu"))]
 use crate::camera::CameraWrapper;
 use crate::types::SimulationState;
 
-/// Start the HTTP server on port 80
+/// Start the HTTP server on port 80 (with camera support)
+#[cfg(not(feature = "qemu"))]
 pub fn start_server(
     camera: Arc<Mutex<CameraWrapper>>,
     sim_state: Arc<Mutex<SimulationState>>,
@@ -41,6 +43,34 @@ pub fn start_server(
     Ok(())
 }
 
+/// Start the HTTP server on port 80 (headless mode for QEMU)
+#[cfg(feature = "qemu")]
+pub fn start_server_headless(sim_state: Arc<Mutex<SimulationState>>) -> anyhow::Result<()> {
+    let listener = TcpListener::bind("0.0.0.0:80")?;
+    listener.set_nonblocking(false)?;
+
+    info!("HTTP server listening on port 80 (headless mode)");
+
+    for stream in listener.incoming() {
+        match stream {
+            Ok(stream) => {
+                let sim_state_clone = sim_state.clone();
+
+                // Handle each connection in the same thread (single-threaded server)
+                if let Err(e) = handle_client_headless(stream, sim_state_clone) {
+                    error!("Error handling client: {:?}", e);
+                }
+            }
+            Err(e) => {
+                error!("Connection error: {:?}", e);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(not(feature = "qemu"))]
 fn handle_client(
     mut stream: TcpStream,
     camera: Arc<Mutex<CameraWrapper>>,
@@ -86,6 +116,54 @@ fn handle_client(
     Ok(())
 }
 
+#[cfg(feature = "qemu")]
+fn handle_client_headless(
+    mut stream: TcpStream,
+    sim_state: Arc<Mutex<SimulationState>>,
+) -> anyhow::Result<()> {
+    stream.set_read_timeout(Some(Duration::from_secs(5)))?;
+    stream.set_write_timeout(Some(Duration::from_secs(5)))?;
+
+    let mut buffer = [0u8; 2048];
+    let bytes_read = stream.read(&mut buffer)?;
+
+    if bytes_read == 0 {
+        return Ok(());
+    }
+
+    // Parse HTTP request
+    if let Some(request) = HttpRequest::parse(&buffer[..bytes_read]) {
+        info!("Request: {} {}", request.method, request.path);
+
+        match (request.method, request.path) {
+            ("GET", "/stream") => {
+                // Camera streaming not available in QEMU mode
+                let response = Response::error(501, r#"{"error":"Camera not available in QEMU mode"}"#);
+                write_response(&mut stream, &response)?;
+            }
+            ("POST", "/api/position") => {
+                let response = handle_position_update(request.body, &sim_state);
+                write_response(&mut stream, &response)?;
+            }
+            ("POST", "/api/settings") => {
+                let response = handle_settings_update(request.body, &sim_state);
+                write_response(&mut stream, &response)?;
+            }
+            ("GET", "/api/status") => {
+                let response = handle_status(&sim_state);
+                write_response(&mut stream, &response)?;
+            }
+            _ => {
+                let response = Response::error(404, r#"{"error":"Not found"}"#);
+                write_response(&mut stream, &response)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(not(feature = "qemu"))]
 fn handle_mjpeg_stream(
     mut stream: TcpStream,
     camera: Arc<Mutex<CameraWrapper>>,

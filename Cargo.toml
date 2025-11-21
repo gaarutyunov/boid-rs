@@ -5,6 +5,7 @@ members = [
     "boid-shared",
     "boid-client",
 ]
+exclude = ["boid-esp32"]
 # Note: boid-esp32 is intentionally excluded from the workspace
 # It requires ESP toolchain and target, making it incompatible
 # with standard workspace operations. Build it separately: cd boid-esp32 && cargo build
