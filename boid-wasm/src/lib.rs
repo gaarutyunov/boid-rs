@@ -446,7 +446,10 @@ mod hand_tracker {
 
         /// Process ImageData and detect hand landmarks
         /// Returns thumb and index finger positions if a hand is detected
-        pub fn process_frame(&self, image_data: &ImageData) -> Result<Option<HandLandmarks>, JsValue> {
+        pub fn process_frame(
+            &self,
+            image_data: &ImageData,
+        ) -> Result<Option<HandLandmarks>, JsValue> {
             let width = image_data.width() as usize;
             let height = image_data.height() as usize;
             let data = image_data.data();
@@ -467,8 +470,11 @@ mod hand_tracker {
 
                     // Simple skin color detection using RGB
                     // Skin detection heuristic: R > G > B, and R > 95, G > 40, B > 20
-                    let is_skin = r > 95.0 && g > 40.0 && b > 20.0
-                        && r > g && g > b
+                    let is_skin = r > 95.0
+                        && g > 40.0
+                        && b > 20.0
+                        && r > g
+                        && g > b
                         && (r as i32 - g as i32).abs() > 15
                         && r - b > 15.0;
 
@@ -493,7 +499,8 @@ mod hand_tracker {
             }
 
             // Find topmost points (likely fingertips)
-            let mut top_points: Vec<(usize, usize)> = skin_pixels.iter()
+            let mut top_points: Vec<(usize, usize)> = skin_pixels
+                .iter()
                 .filter(|(_x, y)| *y < min_y + (max_y - min_y) / 3) // Top third of hand
                 .cloned()
                 .collect();
@@ -510,7 +517,8 @@ mod hand_tracker {
             let mut finger_candidates: Vec<(usize, usize)> = Vec::new();
             let grouping_threshold = 30; // pixels
 
-            for point in top_points.iter().take(100) { // Process top 100 points
+            for point in top_points.iter().take(100) {
+                // Process top 100 points
                 let mut found_group = false;
                 for candidate in finger_candidates.iter_mut() {
                     let dx = (point.0 as i32 - candidate.0 as i32).abs();
