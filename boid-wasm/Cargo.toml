@@ -10,9 +10,9 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 boid-core = { workspace = true }
+boid-hand-detector = { path = "../boid-hand-detector" }
 wasm-bindgen = { workspace = true }
 js-sys = { workspace = true }
-opencv-wasm = "=4.8.1"
 
 [dependencies.web-sys]
 workspace = true

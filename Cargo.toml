@@ -3,7 +3,7 @@ members = [
     "boid-core",
     "boid-wasm",
     "boid-shared",
-    "boid-client",
+    "boid-client", "boid-hand-detector",
 ]
 # Note: boid-esp32 is intentionally excluded from the workspace
 # It requires ESP toolchain and target, making it incompatible
