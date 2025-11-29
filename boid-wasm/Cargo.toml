@@ -12,6 +12,7 @@ crate-type = ["cdylib", "rlib"]
 boid-core = { workspace = true }
 wasm-bindgen = { workspace = true }
 js-sys = { workspace = true }
+opencv-wasm = "=4.8.1"
 
 [dependencies.web-sys]
 workspace = true
@@ -22,6 +23,7 @@ features = [
     "HtmlCanvasElement",
     "HtmlVideoElement",
     "CanvasRenderingContext2d",
+    "ImageData",
 ]
 
 [dev-dependencies]

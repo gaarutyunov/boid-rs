@@ -1,7 +1,7 @@
 use boid_core::{Boid, FlockStd, Vector2D};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, HtmlVideoElement};
+use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, HtmlVideoElement, ImageData};
 
 #[wasm_bindgen]
 extern "C" {
@@ -26,6 +26,7 @@ pub struct BoidSimulation {
     wander_enabled: bool,
     baseline_separation_weight: f32,
     baseline_max_speed: f32,
+    hand_tracker: hand_tracker::HandTracker,
 }
 
 // Pinch detection threshold in pixels
@@ -77,6 +78,7 @@ impl BoidSimulation {
             wander_enabled: false,
             baseline_separation_weight,
             baseline_max_speed,
+            hand_tracker: hand_tracker::HandTracker::new(),
         })
     }
 
@@ -390,6 +392,174 @@ impl BoidSimulation {
         self.context.fill();
 
         Ok(())
+    }
+
+    /// Process a video frame for hand detection using OpenCV-based hand tracking
+    /// Takes ImageData from a canvas and detects hand landmarks
+    pub fn process_video_frame(&mut self, image_data: &ImageData) -> Result<bool, JsValue> {
+        match self.hand_tracker.process_frame(image_data)? {
+            Some(landmarks) => {
+                let canvas_width = self.canvas.width() as f32;
+                // Mirror the x-coordinates to match the flipped video
+                self.thumb_position = Some(Vector2D::new(
+                    canvas_width - landmarks.thumb_x,
+                    landmarks.thumb_y,
+                ));
+                self.index_position = Some(Vector2D::new(
+                    canvas_width - landmarks.index_x,
+                    landmarks.index_y,
+                ));
+                Ok(true) // Hand detected
+            }
+            None => {
+                self.thumb_position = None;
+                self.index_position = None;
+                Ok(false) // No hand detected
+            }
+        }
+    }
+}
+
+// Hand tracking module using simplified skin color detection
+mod hand_tracker {
+    use super::*;
+
+    /// Simple hand landmark detection result
+    pub struct HandLandmarks {
+        pub thumb_x: f32,
+        pub thumb_y: f32,
+        pub index_x: f32,
+        pub index_y: f32,
+    }
+
+    /// Simplified hand tracker using skin color detection
+    pub struct HandTracker {
+        min_blob_area: usize,
+    }
+
+    impl HandTracker {
+        pub fn new() -> Self {
+            Self {
+                min_blob_area: 2000, // Minimum pixels to consider as hand
+            }
+        }
+
+        /// Process ImageData and detect hand landmarks
+        /// Returns thumb and index finger positions if a hand is detected
+        pub fn process_frame(
+            &self,
+            image_data: &ImageData,
+        ) -> Result<Option<HandLandmarks>, JsValue> {
+            let width = image_data.width() as usize;
+            let height = image_data.height() as usize;
+            let data = image_data.data();
+
+            if data.len() < width * height * 4 {
+                return Ok(None);
+            }
+
+            // Create skin mask
+            let mut skin_pixels = Vec::with_capacity(width * height);
+
+            for y in 0..height {
+                for x in 0..width {
+                    let idx = (y * width + x) * 4;
+                    let r = data[idx] as f32;
+                    let g = data[idx + 1] as f32;
+                    let b = data[idx + 2] as f32;
+
+                    // Simple skin color detection using RGB
+                    // Skin detection heuristic: R > G > B, and R > 95, G > 40, B > 20
+                    let is_skin = r > 95.0
+                        && g > 40.0
+                        && b > 20.0
+                        && r > g
+                        && g > b
+                        && (r as i32 - g as i32).abs() > 15
+                        && r - b > 15.0;
+
+                    if is_skin {
+                        skin_pixels.push((x, y));
+                    }
+                }
+            }
+
+            if skin_pixels.len() < self.min_blob_area {
+                return Ok(None);
+            }
+
+            // Find bounding box of skin region
+            let min_x = skin_pixels.iter().map(|(x, _)| *x).min().unwrap_or(0);
+            let max_x = skin_pixels.iter().map(|(x, _)| *x).max().unwrap_or(0);
+            let min_y = skin_pixels.iter().map(|(_, y)| *y).min().unwrap_or(0);
+            let max_y = skin_pixels.iter().map(|(_, y)| *y).max().unwrap_or(0);
+
+            if max_x <= min_x || max_y <= min_y {
+                return Ok(None);
+            }
+
+            // Find topmost points (likely fingertips)
+            let mut top_points: Vec<(usize, usize)> = skin_pixels
+                .iter()
+                .filter(|(_x, y)| *y < min_y + (max_y - min_y) / 3) // Top third of hand
+                .cloned()
+                .collect();
+
+            if top_points.len() < 2 {
+                return Ok(None);
+            }
+
+            // Sort by y-coordinate (topmost first)
+            top_points.sort_by_key(|(_, y)| *y);
+
+            // Find the two topmost distinct points
+            // Group points by proximity and find centroids
+            let mut finger_candidates: Vec<(usize, usize)> = Vec::new();
+            let grouping_threshold = 30; // pixels
+
+            for point in top_points.iter().take(100) {
+                // Process top 100 points
+                let mut found_group = false;
+                for candidate in finger_candidates.iter_mut() {
+                    let dx = (point.0 as i32 - candidate.0 as i32).abs();
+                    let dy = (point.1 as i32 - candidate.1 as i32).abs();
+
+                    if dx < grouping_threshold && dy < grouping_threshold {
+                        // Average position
+                        candidate.0 = (candidate.0 + point.0) / 2;
+                        candidate.1 = (candidate.1 + point.1) / 2;
+                        found_group = true;
+                        break;
+                    }
+                }
+
+                if !found_group {
+                    finger_candidates.push(*point);
+                }
+
+                if finger_candidates.len() >= 5 {
+                    break; // We have enough candidates
+                }
+            }
+
+            if finger_candidates.len() < 2 {
+                return Ok(None);
+            }
+
+            // Sort candidates by x-coordinate to identify thumb (leftmost) and index (next)
+            finger_candidates.sort_by_key(|(x, _)| *x);
+
+            // Assume leftmost top point is thumb, next is index
+            let thumb = finger_candidates[0];
+            let index = finger_candidates[1];
+
+            Ok(Some(HandLandmarks {
+                thumb_x: thumb.0 as f32,
+                thumb_y: thumb.1 as f32,
+                index_x: index.0 as f32,
+                index_y: index.1 as f32,
+            }))
+        }
     }
 }
 
