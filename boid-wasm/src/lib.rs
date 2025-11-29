@@ -3,7 +3,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, HtmlVideoElement, ImageData};
 
-mod hand_tracker;
+pub mod hand_tracker;
 
 #[wasm_bindgen]
 extern "C" {

@@ -22,12 +22,14 @@ features = [
     "Document",
     "HtmlCanvasElement",
     "HtmlVideoElement",
+    "HtmlImageElement",
     "CanvasRenderingContext2d",
     "ImageData",
 ]
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
+wasm-bindgen-futures = "0.4"
 
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = false
