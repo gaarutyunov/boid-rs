@@ -1,8 +1,9 @@
 use boid_core::{Boid, FlockStd, Vector2D};
-use boid_hand_detector::HandDetector;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, HtmlVideoElement, ImageData};
+
+mod hand_tracker;
 
 #[wasm_bindgen]
 extern "C" {
@@ -27,7 +28,7 @@ pub struct BoidSimulation {
     wander_enabled: bool,
     baseline_separation_weight: f32,
     baseline_max_speed: f32,
-    hand_detector: HandDetector,
+    hand_tracker: hand_tracker::HandTracker,
 }
 
 // Pinch detection threshold in pixels
@@ -79,7 +80,7 @@ impl BoidSimulation {
             wander_enabled: false,
             baseline_separation_weight,
             baseline_max_speed,
-            hand_detector: HandDetector::new(),
+            hand_tracker: hand_tracker::HandTracker::new()?,
         })
     }
 
@@ -395,14 +396,10 @@ impl BoidSimulation {
         Ok(())
     }
 
-    /// Process a video frame for hand detection using shared hand detector
+    /// Process a video frame for hand detection using OpenCV.js
     /// Takes ImageData from a canvas and detects hand landmarks
     pub fn process_video_frame(&mut self, image_data: &ImageData) -> Result<bool, JsValue> {
-        let width = image_data.width() as usize;
-        let height = image_data.height() as usize;
-        let data = image_data.data();
-
-        match self.hand_detector.process_rgba_image(width, height, &data) {
+        match self.hand_tracker.process_frame(image_data)? {
             Some(landmarks) => {
                 let canvas_width = self.canvas.width() as f32;
                 // Mirror the x-coordinates to match the flipped video

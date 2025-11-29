@@ -10,7 +10,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 boid-core = { workspace = true }
-boid-hand-detector = { path = "../boid-hand-detector" }
+boid-shared = { path = "../boid-shared" }
 wasm-bindgen = { workspace = true }
 js-sys = { workspace = true }
 
