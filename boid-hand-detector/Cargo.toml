@@ -1,0 +1,19 @@
+[package]
+name = "boid-hand-detector"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+boid-shared = { path = "../boid-shared" }
+
+# Optional dependencies for different backends
+opencv = { version = "0.93", optional = true }
+
+[features]
+default = []
+std = []
+opencv-backend = ["opencv", "std"]
+
+[lib]
