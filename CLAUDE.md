@@ -104,6 +104,10 @@ npm install              # First time only
 npm run test:e2e        # Run tests
 npm run test:e2e:ui     # Run with interactive UI
 
+# Test ESP32 in QEMU (requires ESP toolchain and QEMU)
+cd boid-esp32
+./run_qemu.sh           # Build and run QEMU test
+
 # Format code
 cargo fmt --all
 
@@ -239,6 +243,9 @@ LCD Display                                Position Updates
 - HTTP server: `boid-esp32/src/http_server.rs`
 - Camera module (reference): `boid-esp32/src/camera.rs`
 - Camera documentation: `boid-esp32/README_CAMERA.md`
+- QEMU documentation: `boid-esp32/README_QEMU.md`
+- QEMU runner script: `boid-esp32/run_qemu.sh`
+- QEMU SDK config: `boid-esp32/sdkconfig.qemu`
 - WiFi config: `boid-esp32/src/wifi_config.rs`
 - Client main: `boid-client/src/main.rs`
 - Hand tracker: `boid-client/src/hand_tracker.rs`
@@ -263,6 +270,13 @@ npm run test:e2e:ui  # Interactive mode
 # Test ESP32 build (requires ESP toolchain)
 cd boid-esp32
 cargo +esp check
+
+# Test ESP32 in QEMU (requires ESP toolchain and QEMU)
+cd boid-esp32
+./run_qemu.sh  # Run automated test
+# Or manually:
+export ESP_IDF_SDKCONFIG_DEFAULTS="sdkconfig.qemu"
+cargo +esp build --release --features qemu
 
 # Build client (requires OpenCV)
 cd boid-client
