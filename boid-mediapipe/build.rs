@@ -10,7 +10,7 @@ fn main() {
         "{}/bazel-bin/mediapipe/examples/desktop/hand_tracking",
         mediapipe_dir
     );
-    let mediapipe_include = format!("{}", mediapipe_dir);
+    let mediapipe_include = mediapipe_dir.to_string();
 
     println!("cargo:rerun-if-changed=src/wrapper.h");
     println!("cargo:rerun-if-changed=src/wrapper.cpp");
