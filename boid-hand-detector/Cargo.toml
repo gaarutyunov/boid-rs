@@ -9,7 +9,7 @@ license.workspace = true
 boid-shared = { path = "../boid-shared" }
 
 # Optional dependencies for different backends
-opencv = { version = "0.93", optional = true }
+opencv = { version = "0.93", features = ["clang-runtime"], optional = true }
 
 [features]
 default = []
