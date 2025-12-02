@@ -16,14 +16,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: "18"
+
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             build-essential \
             libopencv-dev \
-            libclang-dev \
-            clang \
+            libclang-18-dev \
+            libclang1-18 \
+            clang-18 \
             cmake \
             python3 \
             python3-pip
@@ -32,15 +38,28 @@ jobs:
         run: |
           pip3 install numpy
 
-      - name: Verify libclang installation
+      - name: Verify and configure libclang
         run: |
-          echo "Checking for libclang..."
-          find /usr/lib -name "libclang.so*" 2>/dev/null || true
-          ls -la /usr/lib/llvm-*/lib/libclang.so* 2>/dev/null || true
-          # Set up symlink if needed
-          if [ -f /usr/lib/x86_64-linux-gnu/libclang-18.so.1 ]; then
-            sudo ln -sf /usr/lib/x86_64-linux-gnu/libclang-18.so.1 /usr/lib/x86_64-linux-gnu/libclang.so || true
+          echo "=== Checking for libclang installations ==="
+          find /usr/lib -name "libclang*.so*" 2>/dev/null || true
+          echo ""
+          echo "=== LLVM installations ==="
+          ls -la /usr/lib/llvm-*/lib/ 2>/dev/null || true
+          echo ""
+          echo "=== Creating symlinks ==="
+          # Create symlink in standard location
+          if [ -f /usr/lib/llvm-18/lib/libclang.so.1 ]; then
+            sudo ln -sf /usr/lib/llvm-18/lib/libclang.so.1 /usr/lib/llvm-18/lib/libclang.so
+            echo "Created symlink: /usr/lib/llvm-18/lib/libclang.so"
           fi
+          if [ -f /usr/lib/x86_64-linux-gnu/libclang-18.so.1 ]; then
+            sudo ln -sf /usr/lib/x86_64-linux-gnu/libclang-18.so.1 /usr/lib/x86_64-linux-gnu/libclang.so
+            echo "Created symlink: /usr/lib/x86_64-linux-gnu/libclang.so"
+          fi
+          echo ""
+          echo "=== Final verification ==="
+          ls -la /usr/lib/llvm-18/lib/libclang.so* 2>/dev/null || true
+          ls -la /usr/lib/x86_64-linux-gnu/libclang.so* 2>/dev/null || true
 
       - name: Install Bazelisk
         run: |
@@ -124,19 +143,21 @@ jobs:
       - name: Run clippy
         env:
           MEDIAPIPE_DIR: /opt/mediapipe
-          LIBCLANG_PATH: /usr/lib/x86_64-linux-gnu
+          LIBCLANG_PATH: /usr/lib/llvm-18/lib
+          LD_LIBRARY_PATH: /usr/lib/llvm-18/lib:/usr/lib/x86_64-linux-gnu
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Build workspace (without MediaPipe)
         env:
-          LIBCLANG_PATH: /usr/lib/x86_64-linux-gnu
+          LIBCLANG_PATH: /usr/lib/llvm-18/lib
+          LD_LIBRARY_PATH: /usr/lib/llvm-18/lib:/usr/lib/x86_64-linux-gnu
         run: cargo build --workspace --exclude boid-mediapipe --verbose
 
       - name: Build with MediaPipe
         env:
           MEDIAPIPE_DIR: /opt/mediapipe
-          LD_LIBRARY_PATH: /usr/local/mediapipe/lib:$LD_LIBRARY_PATH
-          LIBCLANG_PATH: /usr/lib/x86_64-linux-gnu
+          LIBCLANG_PATH: /usr/lib/llvm-18/lib
+          LD_LIBRARY_PATH: /usr/local/mediapipe/lib:/usr/lib/llvm-18/lib:/usr/lib/x86_64-linux-gnu
         run: |
           # Try to build boid-mediapipe if MediaPipe is available
           if [ -d /opt/mediapipe ]; then
@@ -146,8 +167,8 @@ jobs:
       - name: Run tests
         env:
           MEDIAPIPE_DIR: /opt/mediapipe
-          LD_LIBRARY_PATH: /usr/local/mediapipe/lib:$LD_LIBRARY_PATH
-          LIBCLANG_PATH: /usr/lib/x86_64-linux-gnu
+          LIBCLANG_PATH: /usr/lib/llvm-18/lib
+          LD_LIBRARY_PATH: /usr/local/mediapipe/lib:/usr/lib/llvm-18/lib:/usr/lib/x86_64-linux-gnu
         run: cargo test --workspace --exclude boid-mediapipe --verbose
 
       - name: Build WASM
