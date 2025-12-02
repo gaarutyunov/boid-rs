@@ -32,6 +32,16 @@ jobs:
         run: |
           pip3 install numpy
 
+      - name: Verify libclang installation
+        run: |
+          echo "Checking for libclang..."
+          find /usr/lib -name "libclang.so*" 2>/dev/null || true
+          ls -la /usr/lib/llvm-*/lib/libclang.so* 2>/dev/null || true
+          # Set up symlink if needed
+          if [ -f /usr/lib/x86_64-linux-gnu/libclang-18.so.1 ]; then
+            sudo ln -sf /usr/lib/x86_64-linux-gnu/libclang-18.so.1 /usr/lib/x86_64-linux-gnu/libclang.so || true
+          fi
+
       - name: Install Bazelisk
         run: |
           wget -q https://github.com/bazelbuild/bazelisk/releases/download/v1.19.0/bazelisk-linux-amd64
@@ -114,15 +124,19 @@ jobs:
       - name: Run clippy
         env:
           MEDIAPIPE_DIR: /opt/mediapipe
+          LIBCLANG_PATH: /usr/lib/x86_64-linux-gnu
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Build workspace (without MediaPipe)
+        env:
+          LIBCLANG_PATH: /usr/lib/x86_64-linux-gnu
         run: cargo build --workspace --exclude boid-mediapipe --verbose
 
       - name: Build with MediaPipe
         env:
           MEDIAPIPE_DIR: /opt/mediapipe
           LD_LIBRARY_PATH: /usr/local/mediapipe/lib:$LD_LIBRARY_PATH
+          LIBCLANG_PATH: /usr/lib/x86_64-linux-gnu
         run: |
           # Try to build boid-mediapipe if MediaPipe is available
           if [ -d /opt/mediapipe ]; then
@@ -133,6 +147,7 @@ jobs:
         env:
           MEDIAPIPE_DIR: /opt/mediapipe
           LD_LIBRARY_PATH: /usr/local/mediapipe/lib:$LD_LIBRARY_PATH
+          LIBCLANG_PATH: /usr/lib/x86_64-linux-gnu
         run: cargo test --workspace --exclude boid-mediapipe --verbose
 
       - name: Build WASM
