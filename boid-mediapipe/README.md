@@ -44,7 +44,11 @@ cd mediapipe
 
 ```bash
 # Build the hand tracking library
+# Note: On Ubuntu 24.04, OpenCV headers are in /usr/include/opencv4
+# We need to explicitly add this path for MediaPipe's build
 bazel build -c opt --define MEDIAPIPE_DISABLE_GPU=1 \
+    --copt=-I/usr/include/opencv4 \
+    --cxxopt=-I/usr/include/opencv4 \
     mediapipe/examples/desktop/hand_tracking:hand_tracking_cpu
 
 # This will create the binary at:
@@ -294,6 +298,26 @@ If bindgen fails to find headers:
 ```bash
 export MEDIAPIPE_DIR=/opt/mediapipe
 export CPLUS_INCLUDE_PATH=/opt/mediapipe:$CPLUS_INCLUDE_PATH
+```
+
+### OpenCV Headers Not Found
+
+If you get errors like `fatal error: opencv2/core/version.hpp: No such file or directory`:
+
+This occurs because Ubuntu 24.04 installs OpenCV 4.x headers in `/usr/include/opencv4/`, but MediaPipe expects them to be directly accessible. Solutions:
+
+**Option 1: Use Bazel flags (recommended)**
+```bash
+bazel build -c opt --define MEDIAPIPE_DISABLE_GPU=1 \
+    --copt=-I/usr/include/opencv4 \
+    --cxxopt=-I/usr/include/opencv4 \
+    mediapipe/examples/desktop/hand_tracking:hand_tracking_cpu
+```
+
+**Option 2: Set environment variables**
+```bash
+export CPLUS_INCLUDE_PATH=/usr/include/opencv4:$CPLUS_INCLUDE_PATH
+export C_INCLUDE_PATH=/usr/include/opencv4:$C_INCLUDE_PATH
 ```
 
 ### Bazel Issues

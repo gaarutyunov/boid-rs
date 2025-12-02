@@ -53,6 +53,14 @@ echo -e "\n${YELLOW}Installing Python dependencies...${NC}"
 pip3 install --user numpy
 echo -e "${GREEN}✓${NC} numpy installed"
 
+# Configure OpenCV paths
+echo -e "\n${YELLOW}Configuring OpenCV paths...${NC}"
+# Ubuntu 24.04 installs OpenCV 4.x headers in /usr/include/opencv4
+# MediaPipe expects them to be directly accessible
+export CPLUS_INCLUDE_PATH=/usr/include/opencv4:$CPLUS_INCLUDE_PATH
+export C_INCLUDE_PATH=/usr/include/opencv4:$C_INCLUDE_PATH
+echo -e "${GREEN}✓${NC} OpenCV paths configured"
+
 # Clone MediaPipe
 if [ ! -d "$MEDIAPIPE_DIR" ]; then
     echo -e "\n${YELLOW}Cloning MediaPipe repository...${NC}"
@@ -71,7 +79,10 @@ echo "This may take 15-30 minutes on first build..."
 cd "$MEDIAPIPE_DIR"
 
 # Build hand tracking example
+# Add OpenCV include paths for Ubuntu 24.04 compatibility
 bazel build -c opt --define MEDIAPIPE_DISABLE_GPU=1 \
+    --copt=-I/usr/include/opencv4 \
+    --cxxopt=-I/usr/include/opencv4 \
     mediapipe/examples/desktop/hand_tracking:hand_tracking_cpu
 
 echo -e "${GREEN}✓${NC} MediaPipe built successfully"

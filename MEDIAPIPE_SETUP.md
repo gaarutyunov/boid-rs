@@ -174,6 +174,28 @@ export MEDIAPIPE_DIR=/opt/mediapipe
 export LIBCLANG_PATH=/usr/lib/llvm-18/lib
 ```
 
+### OpenCV Headers Not Found
+
+If MediaPipe build fails with `fatal error: opencv2/core/version.hpp: No such file or directory`:
+
+This is a common issue on Ubuntu 24.04 where OpenCV 4.x headers are installed in `/usr/include/opencv4/`. The automated build script handles this, but if building manually:
+
+```bash
+# Use Bazel flags to specify OpenCV include path
+bazel build -c opt --define MEDIAPIPE_DISABLE_GPU=1 \
+    --copt=-I/usr/include/opencv4 \
+    --cxxopt=-I/usr/include/opencv4 \
+    mediapipe/examples/desktop/hand_tracking:hand_tracking_cpu
+```
+
+### NumPy Not Found
+
+If MediaPipe build fails with `ModuleNotFoundError: No module named 'numpy'`:
+
+```bash
+pip3 install numpy
+```
+
 ### Out of Memory During Build
 
 Reduce Bazel's memory usage:

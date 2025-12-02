@@ -59,8 +59,10 @@ jobs:
         if: steps.cache-mediapipe.outputs.cache-hit != 'true'
         run: |
           cd /opt/mediapipe
-          # Build hand tracking example
+          # Build hand tracking example with OpenCV include paths
           bazel build -c opt --define MEDIAPIPE_DISABLE_GPU=1 \
+            --copt=-I/usr/include/opencv4 \
+            --cxxopt=-I/usr/include/opencv4 \
             mediapipe/examples/desktop/hand_tracking:hand_tracking_cpu
 
       - name: Install MediaPipe libraries
