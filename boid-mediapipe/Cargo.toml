@@ -1,0 +1,19 @@
+[package]
+name = "boid-mediapipe"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "MediaPipe hand tracking bindings for boid-rs"
+
+[lib]
+name = "boid_mediapipe"
+path = "src/lib.rs"
+
+[dependencies]
+boid-shared = { path = "../boid-shared" }
+anyhow = "1.0"
+
+[build-dependencies]
+bindgen = "0.70"
+cc = "1.0"
