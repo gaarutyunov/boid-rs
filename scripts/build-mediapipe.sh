@@ -48,6 +48,11 @@ echo -e "\n${YELLOW}Installing system dependencies...${NC}"
 sudo apt-get update
 sudo apt-get install -y build-essential libopencv-dev libclang-dev clang cmake python3 python3-pip
 
+# Install Python dependencies (required for MediaPipe build)
+echo -e "\n${YELLOW}Installing Python dependencies...${NC}"
+pip3 install --user numpy
+echo -e "${GREEN}✓${NC} numpy installed"
+
 # Clone MediaPipe
 if [ ! -d "$MEDIAPIPE_DIR" ]; then
     echo -e "\n${YELLOW}Cloning MediaPipe repository...${NC}"

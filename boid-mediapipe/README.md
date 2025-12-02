@@ -21,6 +21,9 @@ sudo apt-get install -y \
     cmake \
     wget
 
+# Install Python dependencies (required for MediaPipe build)
+pip3 install numpy
+
 # Install Bazelisk (Bazel version manager)
 wget https://github.com/bazelbuild/bazelisk/releases/download/v1.19.0/bazelisk-linux-amd64
 chmod +x bazelisk-linux-amd64

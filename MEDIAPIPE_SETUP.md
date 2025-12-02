@@ -46,6 +46,9 @@ sudo apt-get install -y \
     clang \
     cmake \
     wget
+
+# Install Python dependencies (required for MediaPipe build)
+pip3 install numpy
 ```
 
 ## Architecture
