@@ -92,11 +92,12 @@ jobs:
               echo "Contents of com_github_glog_glog/src:"
               ls -la /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog/src/ 2>/dev/null || true
               echo ""
-              echo "Looking for glog directory:"
-              find /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog -type d -name "glog" 2>/dev/null || true
+              echo "Contents of com_github_glog_glog/src/glog:"
+              ls -la /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog/src/glog/ 2>/dev/null || true
               echo ""
               echo "Looking for logging.h:"
               find /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog -name "logging.h" 2>/dev/null || true
+              find /opt/mediapipe/bazel-bin -name "logging.h" -path "*glog*" 2>/dev/null || true
             fi
             echo ""
             echo "=== Checking bazel-bin for glog ==="
@@ -157,11 +158,12 @@ jobs:
               echo "Contents of com_github_glog_glog/src:"
               ls -la /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog/src/ 2>/dev/null || true
               echo ""
-              echo "Looking for glog directory:"
-              find /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog -type d -name "glog" 2>/dev/null || true
+              echo "Contents of com_github_glog_glog/src/glog:"
+              ls -la /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog/src/glog/ 2>/dev/null || true
               echo ""
               echo "Looking for logging.h:"
               find /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog -name "logging.h" 2>/dev/null || true
+              find /opt/mediapipe/bazel-bin -name "logging.h" -path "*glog*" 2>/dev/null || true
             fi
             echo ""
             echo "=== Checking bazel-bin for glog ==="
