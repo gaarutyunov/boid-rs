@@ -140,6 +140,25 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
+      - name: Debug Bazel external dependencies
+        run: |
+          echo "=== Checking Bazel external directory structure ==="
+          if [ -d /opt/mediapipe/bazel-mediapipe/external ]; then
+            echo "Listing external dependencies:"
+            ls -la /opt/mediapipe/bazel-mediapipe/external/ | grep -E "(glog|absl|protobuf)" || true
+            echo ""
+            if [ -d /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog ]; then
+              echo "Contents of com_github_glog_glog:"
+              ls -la /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog/
+              echo ""
+              echo "Looking for glog directory:"
+              find /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog -type d -name "glog" 2>/dev/null || true
+              echo ""
+              echo "Looking for logging.h:"
+              find /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog -name "logging.h" 2>/dev/null || true
+            fi
+          fi
+
       - name: Run clippy
         env:
           MEDIAPIPE_DIR: /opt/mediapipe
