@@ -32,6 +32,10 @@ fn main() {
         .include(format!("{}/com_google_absl", bazel_external))
         .include(format!("{}/com_google_protobuf/src", bazel_external))
         .include(format!(
+            "{}/external/com_github_glog_glog",
+            bazel_bin
+        ))
+        .include(format!(
             "{}/external/com_github_glog_glog/_virtual_includes/glog",
             bazel_bin
         ))
@@ -58,6 +62,10 @@ fn main() {
         .clang_arg("-I/usr/include/opencv4")
         .clang_arg(format!("-I{}/com_google_absl", bazel_external))
         .clang_arg(format!("-I{}/com_google_protobuf/src", bazel_external))
+        .clang_arg(format!(
+            "-I{}/external/com_github_glog_glog",
+            bazel_bin
+        ))
         .clang_arg(format!(
             "-I{}/external/com_github_glog_glog/_virtual_includes/glog",
             bazel_bin
