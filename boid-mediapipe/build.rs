@@ -16,12 +16,17 @@ fn main() {
     println!("cargo:rerun-if-changed=src/wrapper.cpp");
     println!("cargo:rerun-if-env-changed=MEDIAPIPE_DIR");
 
+    // Bazel external dependencies path
+    let bazel_external = format!("{}/bazel-mediapipe/external", mediapipe_dir);
+
     // Compile the C++ wrapper
     cc::Build::new()
         .cpp(true)
         .file("src/wrapper.cpp")
         .include(&mediapipe_include)
         .include("/usr/local/include")
+        .include(format!("{}/com_google_absl", bazel_external))
+        .include(format!("{}/com_google_protobuf/src", bazel_external))
         .flag("-std=c++17")
         .flag("-Wno-sign-compare")
         .compile("mediapipe_wrapper");
@@ -37,6 +42,8 @@ fn main() {
         .header("src/wrapper.h")
         .clang_arg(format!("-I{}", mediapipe_include))
         .clang_arg("-I/usr/local/include")
+        .clang_arg(format!("-I{}/com_google_absl", bazel_external))
+        .clang_arg(format!("-I{}/com_google_protobuf/src", bazel_external))
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .expect("Unable to generate bindings");
