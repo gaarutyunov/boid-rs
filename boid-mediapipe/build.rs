@@ -34,6 +34,10 @@ fn main() {
             "{}/external/com_github_glog_glog/_virtual_includes/glog",
             bazel_bin
         ))
+        .include(format!(
+            "{}/external/com_github_gflags_gflags/_virtual_includes/gflags",
+            bazel_bin
+        ))
         .flag("-std=c++17")
         .flag("-Wno-sign-compare")
         .compile("mediapipe_wrapper");
@@ -54,6 +58,10 @@ fn main() {
         .clang_arg(format!("-I{}/com_google_protobuf/src", bazel_external))
         .clang_arg(format!(
             "-I{}/external/com_github_glog_glog/_virtual_includes/glog",
+            bazel_bin
+        ))
+        .clang_arg(format!(
+            "-I{}/external/com_github_gflags_gflags/_virtual_includes/gflags",
             bazel_bin
         ))
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
