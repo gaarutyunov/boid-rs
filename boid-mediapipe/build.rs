@@ -18,12 +18,15 @@ fn main() {
 
     // Bazel external dependencies path
     let bazel_external = format!("{}/bazel-mediapipe/external", mediapipe_dir);
+    // Bazel generated files path (for .pb.h protobuf headers)
+    let bazel_bin = format!("{}/bazel-bin", mediapipe_dir);
 
     // Compile the C++ wrapper
     cc::Build::new()
         .cpp(true)
         .file("src/wrapper.cpp")
         .include(&mediapipe_include)
+        .include(&bazel_bin)
         .include("/usr/local/include")
         .include(format!("{}/com_google_absl", bazel_external))
         .include(format!("{}/com_google_protobuf/src", bazel_external))
@@ -41,6 +44,7 @@ fn main() {
     let bindings = bindgen::Builder::default()
         .header("src/wrapper.h")
         .clang_arg(format!("-I{}", mediapipe_include))
+        .clang_arg(format!("-I{}", bazel_bin))
         .clang_arg("-I/usr/local/include")
         .clang_arg(format!("-I{}/com_google_absl", bazel_external))
         .clang_arg(format!("-I{}/com_google_protobuf/src", bazel_external))
