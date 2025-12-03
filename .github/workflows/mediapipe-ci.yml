@@ -77,6 +77,34 @@ jobs:
             /usr/local/mediapipe
           key: mediapipe-${{ runner.os }}-${{ env.MEDIAPIPE_VERSION }}-v2
 
+      - name: Debug Bazel external dependencies (if cached)
+        if: steps.cache-mediapipe.outputs.cache-hit == 'true'
+        run: |
+          echo "=== Cache HIT - Checking existing Bazel structure ==="
+          if [ -d /opt/mediapipe/bazel-mediapipe/external ]; then
+            echo "Listing external dependencies:"
+            ls -la /opt/mediapipe/bazel-mediapipe/external/ | grep -E "(glog|absl|protobuf)" || true
+            echo ""
+            if [ -d /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog ]; then
+              echo "Contents of com_github_glog_glog:"
+              ls -la /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog/
+              echo ""
+              echo "Contents of com_github_glog_glog/src:"
+              ls -la /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog/src/ 2>/dev/null || true
+              echo ""
+              echo "Looking for glog directory:"
+              find /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog -type d -name "glog" 2>/dev/null || true
+              echo ""
+              echo "Looking for logging.h:"
+              find /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog -name "logging.h" 2>/dev/null || true
+            fi
+            echo ""
+            echo "=== Checking bazel-bin for glog ==="
+            find /opt/mediapipe/bazel-bin -path "*/glog/*" -name "*.h" 2>/dev/null | head -20 || true
+          else
+            echo "Bazel external directory not found in cache"
+          fi
+
       - name: Clone MediaPipe
         if: steps.cache-mediapipe.outputs.cache-hit != 'true'
         run: |
@@ -114,9 +142,10 @@ jobs:
           echo "/usr/local/mediapipe/lib" | sudo tee /etc/ld.so.conf.d/mediapipe.conf
           sudo ldconfig
 
-      - name: Debug Bazel external dependencies
+      - name: Debug Bazel external dependencies (after build)
+        if: steps.cache-mediapipe.outputs.cache-hit != 'true'
         run: |
-          echo "=== Checking Bazel external directory structure ==="
+          echo "=== Cache MISS - Checking Bazel structure after build ==="
           if [ -d /opt/mediapipe/bazel-mediapipe/external ]; then
             echo "Listing external dependencies:"
             ls -la /opt/mediapipe/bazel-mediapipe/external/ | grep -E "(glog|absl|protobuf)" || true
