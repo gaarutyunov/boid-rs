@@ -5,11 +5,45 @@ let animationId = null;
 let lastTime = performance.now();
 let frameCount = 0;
 let fps = 60;
+let handLandmarker = null;
 let webcamRunning = false;
-let tempCanvas = null;
-let tempContext = null;
+
+async function initializeMediaPipe() {
+    try {
+        // Dynamically import MediaPipe to avoid blocking page load
+        const { HandLandmarker, FilesetResolver } = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest');
+
+        const vision = await FilesetResolver.forVisionTasks(
+            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
+        );
+
+        // Create hand landmarker without specifying delegate (auto-select)
+        handLandmarker = await HandLandmarker.createFromOptions(vision, {
+            baseOptions: {
+                modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
+            },
+            runningMode: "VIDEO",
+            numHands: 1,
+            minHandDetectionConfidence: 0.5,
+            minHandPresenceConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        console.log('MediaPipe Hand Landmarker initialized');
+        return true;
+    } catch (error) {
+        console.error('Failed to initialize MediaPipe:', error);
+        console.error('Error details:', error.message, error.stack);
+        return false;
+    }
+}
 
 async function enableWebcam() {
+    if (!handLandmarker) {
+        console.error('HandLandmarker not initialized');
+        return false;
+    }
+
     try {
         const video = document.getElementById('webcam');
 
@@ -36,14 +70,7 @@ async function enableWebcam() {
                     // Explicitly play the video to start the stream
                     await video.play();
                     webcamRunning = true;
-
-                    // Create temporary canvas for video frame extraction
-                    tempCanvas = document.createElement('canvas');
-                    tempCanvas.width = video.videoWidth;
-                    tempCanvas.height = video.videoHeight;
-                    tempContext = tempCanvas.getContext('2d');
-
-                    console.log('Webcam enabled with OpenCV hand tracking');
+                    console.log('Webcam enabled and playing');
                     resolve(true);
                 } catch (error) {
                     console.error('Failed to play video:', error);
@@ -63,6 +90,31 @@ async function enableWebcam() {
         console.error('Failed to enable webcam:', error);
         return false;
     }
+}
+
+function processHandLandmarks(landmarks, canvasWidth, canvasHeight, videoWidth, videoHeight) {
+    // Hand landmark indices:
+    // 4 = Thumb tip
+    // 8 = Index finger tip
+    const thumbTip = landmarks[4];
+    const indexTip = landmarks[8];
+
+    // Convert normalized coordinates to canvas coordinates
+    const thumbX = thumbTip.x * canvasWidth;
+    const thumbY = thumbTip.y * canvasHeight;
+    const indexX = indexTip.x * canvasWidth;
+    const indexY = indexTip.y * canvasHeight;
+
+    // Calculate distance
+    const dx = indexX - thumbX;
+    const dy = indexY - thumbY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    return {
+        thumb: { x: thumbX, y: thumbY },
+        index: { x: indexX, y: indexY },
+        distance: distance
+    };
 }
 
 async function run() {
@@ -95,7 +147,7 @@ async function run() {
 
         console.log('Boid simulation initialized successfully!');
 
-        // Initialize hand tracking (non-blocking, optional feature)
+        // Initialize MediaPipe (non-blocking, optional feature)
         // Skip in test/headless environments
         if (!navigator.webdriver && typeof window !== 'undefined' && window.innerWidth > 0) {
             setTimeout(() => {
@@ -119,17 +171,22 @@ async function initializeHandTracking() {
             return;
         }
 
-        console.log('Initializing OpenCV-based hand tracking...');
+        console.log('Initializing MediaPipe hand tracking...');
+        const mediapipeReady = await initializeMediaPipe();
 
-        // Enable webcam
-        const webcamReady = await enableWebcam();
+        if (mediapipeReady) {
+            // Enable webcam
+            const webcamReady = await enableWebcam();
 
-        if (webcamReady) {
-            // Set video element in simulation
-            simulation.set_video_element('webcam');
-            console.log('OpenCV hand tracking enabled!');
+            if (webcamReady) {
+                // Set video element in simulation
+                simulation.set_video_element('webcam');
+                console.log('Hand tracking enabled!');
+            } else {
+                console.log('Webcam not available, hand tracking disabled');
+            }
         } else {
-            console.log('Webcam not available, hand tracking disabled');
+            console.log('MediaPipe not available, hand tracking disabled');
         }
     } catch (error) {
         console.warn('Hand tracking initialization failed:', error);
@@ -257,24 +314,35 @@ function animate() {
     const deltaTime = currentTime - lastTime;
 
     // Process hand detection if webcam is running
-    if (webcamRunning && tempCanvas && tempContext) {
+    if (webcamRunning && handLandmarker) {
         const video = document.getElementById('webcam');
+        const canvas = document.getElementById('canvas');
 
         if (video.readyState === video.HAVE_ENOUGH_DATA) {
             try {
-                // Draw video frame to temporary canvas
-                tempContext.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+                const results = handLandmarker.detectForVideo(video, currentTime);
 
-                // Get ImageData from canvas
-                const imageData = tempContext.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+                if (results.landmarks && results.landmarks.length > 0) {
+                    // Process first hand detected
+                    const landmarks = results.landmarks[0];
+                    const fingerData = processHandLandmarks(
+                        landmarks,
+                        canvas.width,
+                        canvas.height,
+                        video.videoWidth,
+                        video.videoHeight
+                    );
 
-                // Process frame with OpenCV-based hand tracking in Rust
-                const handDetected = simulation.process_video_frame(imageData);
+                    // Update simulation with finger positions
+                    simulation.update_finger_positions(
+                        fingerData.thumb.x,
+                        fingerData.thumb.y,
+                        fingerData.index.x,
+                        fingerData.index.y
+                    );
 
-                if (handDetected) {
                     // Update UI
                     const isPinched = simulation.is_pinched();
-                    const fingerDistance = simulation.get_finger_distance();
                     const currentSpeed = simulation.get_current_max_speed();
                     const currentSeparation = simulation.get_current_separation_weight();
 
@@ -283,13 +351,14 @@ function animate() {
                     document.getElementById('gesture-status').textContent =
                         isPinched ? '👌 Pinched (Following)' : '✋ Open (Dynamic)';
                     document.getElementById('finger-distance').textContent =
-                        fingerDistance !== null ? `${Math.round(fingerDistance)}px` : 'N/A';
+                        `${Math.round(fingerData.distance)}px`;
                     document.getElementById('dynamic-speed').textContent =
                         currentSpeed.toFixed(2);
                     document.getElementById('dynamic-separation').textContent =
                         currentSeparation.toFixed(2);
                 } else {
                     // No hand detected
+                    simulation.clear_finger_positions();
                     document.getElementById('hand-status').textContent = 'No';
                     document.getElementById('gesture-status').textContent = 'N/A';
                     document.getElementById('finger-distance').textContent = 'N/A';

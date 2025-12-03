@@ -1,8 +1,7 @@
 use boid_core::{Boid, FlockStd, Vector2D};
-use boid_hand_detector::HandDetector;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, HtmlVideoElement, ImageData};
+use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, HtmlVideoElement};
 
 #[wasm_bindgen]
 extern "C" {
@@ -27,7 +26,6 @@ pub struct BoidSimulation {
     wander_enabled: bool,
     baseline_separation_weight: f32,
     baseline_max_speed: f32,
-    hand_detector: HandDetector,
 }
 
 // Pinch detection threshold in pixels
@@ -79,7 +77,6 @@ impl BoidSimulation {
             wander_enabled: false,
             baseline_separation_weight,
             baseline_max_speed,
-            hand_detector: HandDetector::new(),
         })
     }
 
@@ -393,35 +390,6 @@ impl BoidSimulation {
         self.context.fill();
 
         Ok(())
-    }
-
-    /// Process a video frame for hand detection using shared hand detector
-    /// Takes ImageData from a canvas and detects hand landmarks
-    pub fn process_video_frame(&mut self, image_data: &ImageData) -> Result<bool, JsValue> {
-        let width = image_data.width() as usize;
-        let height = image_data.height() as usize;
-        let data = image_data.data();
-
-        match self.hand_detector.process_rgba_image(width, height, &data) {
-            Some(landmarks) => {
-                let canvas_width = self.canvas.width() as f32;
-                // Mirror the x-coordinates to match the flipped video
-                self.thumb_position = Some(Vector2D::new(
-                    canvas_width - landmarks.thumb_tip.x,
-                    landmarks.thumb_tip.y,
-                ));
-                self.index_position = Some(Vector2D::new(
-                    canvas_width - landmarks.index_tip.x,
-                    landmarks.index_tip.y,
-                ));
-                Ok(true) // Hand detected
-            }
-            None => {
-                self.thumb_position = None;
-                self.index_position = None;
-                Ok(false) // No hand detected
-            }
-        }
     }
 }
 

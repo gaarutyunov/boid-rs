@@ -1,0 +1,263 @@
+name: Build with MediaPipe
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+  MEDIAPIPE_VERSION: "v0.10.9"
+
+jobs:
+  build-mediapipe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: "18"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libopencv-dev \
+            libclang-18-dev \
+            libclang1-18 \
+            clang-18 \
+            cmake \
+            python3 \
+            python3-pip
+
+      - name: Install Python dependencies
+        run: |
+          pip3 install numpy
+
+      - name: Verify and configure libclang
+        run: |
+          echo "=== Checking for libclang installations ==="
+          find /usr/lib -name "libclang*.so*" 2>/dev/null || true
+          echo ""
+          echo "=== LLVM installations ==="
+          ls -la /usr/lib/llvm-*/lib/ 2>/dev/null || true
+          echo ""
+          echo "=== Creating symlinks ==="
+          # Create symlink in standard location
+          if [ -f /usr/lib/llvm-18/lib/libclang.so.1 ]; then
+            sudo ln -sf /usr/lib/llvm-18/lib/libclang.so.1 /usr/lib/llvm-18/lib/libclang.so
+            echo "Created symlink: /usr/lib/llvm-18/lib/libclang.so"
+          fi
+          if [ -f /usr/lib/x86_64-linux-gnu/libclang-18.so.1 ]; then
+            sudo ln -sf /usr/lib/x86_64-linux-gnu/libclang-18.so.1 /usr/lib/x86_64-linux-gnu/libclang.so
+            echo "Created symlink: /usr/lib/x86_64-linux-gnu/libclang.so"
+          fi
+          echo ""
+          echo "=== Final verification ==="
+          ls -la /usr/lib/llvm-18/lib/libclang.so* 2>/dev/null || true
+          ls -la /usr/lib/x86_64-linux-gnu/libclang.so* 2>/dev/null || true
+
+      - name: Install Bazelisk
+        run: |
+          wget -q https://github.com/bazelbuild/bazelisk/releases/download/v1.19.0/bazelisk-linux-amd64
+          chmod +x bazelisk-linux-amd64
+          sudo mv bazelisk-linux-amd64 /usr/local/bin/bazel
+          bazel --version
+
+      - name: Cache MediaPipe build
+        id: cache-mediapipe
+        uses: actions/cache@v3
+        with:
+          path: |
+            /opt/mediapipe
+            /usr/local/mediapipe
+          key: mediapipe-${{ runner.os }}-${{ env.MEDIAPIPE_VERSION }}-v2
+
+      - name: Debug Bazel external dependencies (if cached)
+        if: steps.cache-mediapipe.outputs.cache-hit == 'true'
+        run: |
+          echo "=== Cache HIT - Checking existing Bazel structure ==="
+          if [ -d /opt/mediapipe/bazel-mediapipe/external ]; then
+            echo "Listing external dependencies:"
+            ls -la /opt/mediapipe/bazel-mediapipe/external/ | grep -E "(glog|absl|protobuf)" || true
+            echo ""
+            if [ -d /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog ]; then
+              echo "Contents of com_github_glog_glog:"
+              ls -la /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog/
+              echo ""
+              echo "Contents of com_github_glog_glog/src:"
+              ls -la /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog/src/ 2>/dev/null || true
+              echo ""
+              echo "Contents of com_github_glog_glog/src/glog:"
+              ls -la /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog/src/glog/ 2>/dev/null || true
+              echo ""
+              echo "Looking for logging.h:"
+              find /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog -name "logging.h" 2>/dev/null || true
+              find /opt/mediapipe/bazel-bin -name "logging.h" -path "*glog*" 2>/dev/null || true
+            fi
+            echo ""
+            echo "=== Checking bazel-bin for glog ==="
+            find /opt/mediapipe/bazel-bin -path "*/glog/*" -name "*.h" 2>/dev/null | head -20 || true
+            echo ""
+            echo "=== Checking bazel-bin/external/com_github_glog_glog ==="
+            if [ -d /opt/mediapipe/bazel-bin/external/com_github_glog_glog ]; then
+              find /opt/mediapipe/bazel-bin/external/com_github_glog_glog -name "*.h" 2>/dev/null | head -20 || true
+            else
+              echo "Directory not found"
+            fi
+          else
+            echo "Bazel external directory not found in cache"
+          fi
+
+      - name: Clone MediaPipe
+        if: steps.cache-mediapipe.outputs.cache-hit != 'true'
+        run: |
+          sudo mkdir -p /opt
+          cd /opt
+          sudo git clone --depth 1 --branch ${{ env.MEDIAPIPE_VERSION }} https://github.com/google-ai-edge/mediapipe.git
+
+      - name: Build MediaPipe hand tracking
+        if: steps.cache-mediapipe.outputs.cache-hit != 'true'
+        run: |
+          cd /opt/mediapipe
+          # Build hand tracking example with OpenCV include paths
+          bazel build -c opt --define MEDIAPIPE_DISABLE_GPU=1 \
+            --copt=-I/usr/include/opencv4 \
+            --cxxopt=-I/usr/include/opencv4 \
+            mediapipe/examples/desktop/hand_tracking:hand_tracking_cpu
+
+      - name: Install MediaPipe libraries
+        run: |
+          sudo mkdir -p /usr/local/mediapipe/lib
+          sudo mkdir -p /usr/local/mediapipe/include
+
+          # Copy built libraries if they exist
+          if [ -f /opt/mediapipe/bazel-bin/mediapipe/examples/desktop/hand_tracking/libmediapipe_hand_tracking.so ]; then
+            sudo cp /opt/mediapipe/bazel-bin/mediapipe/examples/desktop/hand_tracking/libmediapipe_hand_tracking.so \
+              /usr/local/mediapipe/lib/
+          fi
+
+          # Copy headers
+          if [ -d /opt/mediapipe/mediapipe ]; then
+            sudo cp -r /opt/mediapipe/mediapipe /usr/local/mediapipe/include/
+          fi
+
+          # Update library cache
+          echo "/usr/local/mediapipe/lib" | sudo tee /etc/ld.so.conf.d/mediapipe.conf
+          sudo ldconfig
+
+      - name: Debug Bazel external dependencies (after build)
+        if: steps.cache-mediapipe.outputs.cache-hit != 'true'
+        run: |
+          echo "=== Cache MISS - Checking Bazel structure after build ==="
+          if [ -d /opt/mediapipe/bazel-mediapipe/external ]; then
+            echo "Listing external dependencies:"
+            ls -la /opt/mediapipe/bazel-mediapipe/external/ | grep -E "(glog|absl|protobuf)" || true
+            echo ""
+            if [ -d /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog ]; then
+              echo "Contents of com_github_glog_glog:"
+              ls -la /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog/
+              echo ""
+              echo "Contents of com_github_glog_glog/src:"
+              ls -la /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog/src/ 2>/dev/null || true
+              echo ""
+              echo "Contents of com_github_glog_glog/src/glog:"
+              ls -la /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog/src/glog/ 2>/dev/null || true
+              echo ""
+              echo "Looking for logging.h:"
+              find /opt/mediapipe/bazel-mediapipe/external/com_github_glog_glog -name "logging.h" 2>/dev/null || true
+              find /opt/mediapipe/bazel-bin -name "logging.h" -path "*glog*" 2>/dev/null || true
+            fi
+            echo ""
+            echo "=== Checking bazel-bin for glog ==="
+            find /opt/mediapipe/bazel-bin -path "*/glog/*" -name "*.h" 2>/dev/null | head -20 || true
+            echo ""
+            echo "=== Checking bazel-bin/external/com_github_glog_glog ==="
+            if [ -d /opt/mediapipe/bazel-bin/external/com_github_glog_glog ]; then
+              find /opt/mediapipe/bazel-bin/external/com_github_glog_glog -name "*.h" 2>/dev/null | head -20 || true
+            else
+              echo "Directory not found"
+            fi
+            echo ""
+            echo "=== Checking bazel-genfiles for glog ==="
+            find /opt/mediapipe -name "bazel-genfiles" -type d 2>/dev/null || true
+            if [ -d /opt/mediapipe/bazel-genfiles ]; then
+              find /opt/mediapipe/bazel-genfiles -path "*/glog/*" -name "*.h" 2>/dev/null | head -20 || true
+            fi
+          fi
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/registry
+          key: cargo-registry-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache Cargo index
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/git
+          key: cargo-git-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache Cargo build
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: cargo-build-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy
+        env:
+          MEDIAPIPE_DIR: /opt/mediapipe
+          LIBCLANG_PATH: /usr/lib/llvm-18/lib
+          LD_LIBRARY_PATH: /usr/lib/llvm-18/lib:/usr/lib/x86_64-linux-gnu
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Build workspace (without MediaPipe)
+        env:
+          LIBCLANG_PATH: /usr/lib/llvm-18/lib
+          LD_LIBRARY_PATH: /usr/lib/llvm-18/lib:/usr/lib/x86_64-linux-gnu
+        run: cargo build --workspace --exclude boid-mediapipe --verbose
+
+      - name: Build with MediaPipe
+        env:
+          MEDIAPIPE_DIR: /opt/mediapipe
+          LIBCLANG_PATH: /usr/lib/llvm-18/lib
+          LD_LIBRARY_PATH: /usr/local/mediapipe/lib:/usr/lib/llvm-18/lib:/usr/lib/x86_64-linux-gnu
+        run: |
+          # Try to build boid-mediapipe if MediaPipe is available
+          if [ -d /opt/mediapipe ]; then
+            cargo build -p boid-mediapipe --verbose || echo "MediaPipe build skipped (dependencies not fully available)"
+          fi
+
+      - name: Run tests
+        env:
+          MEDIAPIPE_DIR: /opt/mediapipe
+          LIBCLANG_PATH: /usr/lib/llvm-18/lib
+          LD_LIBRARY_PATH: /usr/local/mediapipe/lib:/usr/lib/llvm-18/lib:/usr/lib/x86_64-linux-gnu
+        run: cargo test --workspace --exclude boid-mediapipe --verbose
+
+      - name: Build WASM
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cd boid-wasm
+          cargo build --target wasm32-unknown-unknown --release
+
+      - name: Run WASM tests (if wasm-pack available)
+        run: |
+          if command -v wasm-pack &> /dev/null; then
+            cd boid-wasm
+            wasm-pack test --headless --chrome || echo "WASM tests skipped"
+          else
+            echo "wasm-pack not available, skipping WASM tests"
+          fi

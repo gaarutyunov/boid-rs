@@ -65,6 +65,62 @@ This is a multi-platform Rust boid simulation with five main components:
 2. **E2E tests**: `npm run test:e2e` from `boid-wasm/www/` (for web interface)
 3. **Build verification**: `wasm-pack build --target web` in `boid-wasm/`
 
+### Code Quality & Pre-commit Hooks
+
+The project uses formatting and linting tools to maintain code quality:
+
+**Formatting:**
+- Run `cargo fmt --all` to format all Rust code
+- Check formatting with `cargo fmt --all -- --check`
+
+**Linting:**
+- Run `cargo clippy --all-targets --all-features -- -D warnings`
+- Fix clippy suggestions before committing
+
+**Setting up pre-commit hooks:**
+You can set up Git hooks to automatically run formatting and linting before each commit:
+
+```bash
+# Create .git/hooks/pre-commit
+cat > .git/hooks/pre-commit << 'EOF'
+#!/bin/bash
+
+echo "Running pre-commit checks..."
+
+# Format check
+echo "Checking code formatting..."
+cargo fmt --all -- --check
+if [ $? -ne 0 ]; then
+    echo "❌ Code formatting check failed. Run 'cargo fmt --all' to fix."
+    exit 1
+fi
+
+# Clippy check
+echo "Running clippy..."
+cargo clippy --all-targets --all-features -- -D warnings
+if [ $? -ne 0 ]; then
+    echo "❌ Clippy check failed. Fix the warnings above."
+    exit 1
+fi
+
+echo "✅ Pre-commit checks passed!"
+EOF
+
+# Make the hook executable
+chmod +x .git/hooks/pre-commit
+```
+
+Alternatively, auto-format on commit (less strict):
+```bash
+cat > .git/hooks/pre-commit << 'EOF'
+#!/bin/bash
+cargo fmt --all
+git add -u
+EOF
+
+chmod +x .git/hooks/pre-commit
+```
+
 ### Common Tasks
 
 #### Adding New Boid Behavior

@@ -10,7 +10,6 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 boid-core = { workspace = true }
-boid-hand-detector = { path = "../boid-hand-detector" }
 wasm-bindgen = { workspace = true }
 js-sys = { workspace = true }
 
@@ -23,7 +22,6 @@ features = [
     "HtmlCanvasElement",
     "HtmlVideoElement",
     "CanvasRenderingContext2d",
-    "ImageData",
 ]
 
 [dev-dependencies]
