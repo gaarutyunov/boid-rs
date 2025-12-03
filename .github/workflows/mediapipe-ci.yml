@@ -114,32 +114,6 @@ jobs:
           echo "/usr/local/mediapipe/lib" | sudo tee /etc/ld.so.conf.d/mediapipe.conf
           sudo ldconfig
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-
-      - name: Cache Cargo registry
-        uses: actions/cache@v3
-        with:
-          path: ~/.cargo/registry
-          key: cargo-registry-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache Cargo index
-        uses: actions/cache@v3
-        with:
-          path: ~/.cargo/git
-          key: cargo-git-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Cache Cargo build
-        uses: actions/cache@v3
-        with:
-          path: target
-          key: cargo-build-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-
       - name: Debug Bazel external dependencies
         run: |
           echo "=== Checking Bazel external directory structure ==="
@@ -170,6 +144,32 @@ jobs:
               find /opt/mediapipe/bazel-genfiles -path "*/glog/*" -name "*.h" 2>/dev/null | head -20 || true
             fi
           fi
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/registry
+          key: cargo-registry-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache Cargo index
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/git
+          key: cargo-git-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache Cargo build
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: cargo-build-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
 
       - name: Run clippy
         env:
