@@ -102,6 +102,13 @@ jobs:
             echo ""
             echo "=== Checking bazel-bin for glog ==="
             find /opt/mediapipe/bazel-bin -path "*/glog/*" -name "*.h" 2>/dev/null | head -20 || true
+            echo ""
+            echo "=== Checking bazel-bin/external/com_github_glog_glog ==="
+            if [ -d /opt/mediapipe/bazel-bin/external/com_github_glog_glog ]; then
+              find /opt/mediapipe/bazel-bin/external/com_github_glog_glog -name "*.h" 2>/dev/null | head -20 || true
+            else
+              echo "Directory not found"
+            fi
           else
             echo "Bazel external directory not found in cache"
           fi
@@ -168,6 +175,13 @@ jobs:
             echo ""
             echo "=== Checking bazel-bin for glog ==="
             find /opt/mediapipe/bazel-bin -path "*/glog/*" -name "*.h" 2>/dev/null | head -20 || true
+            echo ""
+            echo "=== Checking bazel-bin/external/com_github_glog_glog ==="
+            if [ -d /opt/mediapipe/bazel-bin/external/com_github_glog_glog ]; then
+              find /opt/mediapipe/bazel-bin/external/com_github_glog_glog -name "*.h" 2>/dev/null | head -20 || true
+            else
+              echo "Directory not found"
+            fi
             echo ""
             echo "=== Checking bazel-genfiles for glog ==="
             find /opt/mediapipe -name "bazel-genfiles" -type d 2>/dev/null || true
