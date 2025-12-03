@@ -30,6 +30,7 @@ fn main() {
         .include("/usr/local/include")
         .include(format!("{}/com_google_absl", bazel_external))
         .include(format!("{}/com_google_protobuf/src", bazel_external))
+        .include(format!("{}/com_github_glog_glog/src", bazel_external))
         .flag("-std=c++17")
         .flag("-Wno-sign-compare")
         .compile("mediapipe_wrapper");
@@ -48,6 +49,7 @@ fn main() {
         .clang_arg("-I/usr/local/include")
         .clang_arg(format!("-I{}/com_google_absl", bazel_external))
         .clang_arg(format!("-I{}/com_google_protobuf/src", bazel_external))
+        .clang_arg(format!("-I{}/com_github_glog_glog/src", bazel_external))
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .expect("Unable to generate bindings");
